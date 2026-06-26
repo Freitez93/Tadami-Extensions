@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.es.sololatino
 
+import android.annotation.SuppressLint
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -122,7 +123,6 @@ class SoloLatino : Source() {
     override fun animeDetailsRequest(anime: SAnime): Request = GET(anime.url, headers)
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
-        val url = response.request.url.toString()
         return SAnime.create().apply {
             this.title = doc.selectFirst("div > img[style]")!!.attr("alt")
             this.thumbnail_url = doc.selectFirst("div > img[style]")
@@ -133,8 +133,9 @@ class SoloLatino : Source() {
 
             // Metadata parsing
             this.genre = doc.select("div.flex > a[href*='/genero/']")
-                .map { it.text() }
-                .joinToString(" ,")
+                .joinToString(" ,") {
+                    it.text()
+                }
             // Strict author parsing to avoid metadata
             this.author = doc.selectFirst("a[href*='/persona/']:matches(Creador|Director) > img")
                 ?.attr("alt")
@@ -163,17 +164,19 @@ class SoloLatino : Source() {
         val episodes = mutableListOf<SEpisode>()
 
         // Si Es Serie/Dorama/Anime se Extraen los Episodios.
+        var epNumCount = 0
         doc.select("a[class*='ep-item']").mapNotNull {
             val epUrl = it.attr("href")
             val epName = it.selectFirst("p[class*=text-white]")?.text()
             val epTemp = epUrl.substringAfter("temporada-").substringBefore("/")
             val epNumb = epUrl.substringAfter("episodio-")
             val epTime = it.selectFirst("p[style='color:#404060']")?.text()
+            epNumCount++
             episodes.add(SEpisode.create().apply {
                 this.url = epUrl
                 this.name = "S$epTemp:E$epNumb - $epName"
                 this.date_upload = getDateLong("dd/MM/yyyy", epTime)
-                this.episode_number = epNumb.toFloat()
+                this.episode_number = epNumCount.toFloat()
                 //this.fillermark = false
                 //this.scanlator = ""
                 this.summary = it.selectFirst("p[class*=line-clamp-2]")?.text()
@@ -181,7 +184,7 @@ class SoloLatino : Source() {
             })
         }
         // Retornamos la lista de Episodios
-        return if (episodes.size != 0) {
+        return if (episodes.isNotEmpty()) {
             episodes.reversed()
         } else {
             val movieDate = doc.selectFirst("div.detail-field:contains(Estreno) > dd")?.text()
@@ -210,10 +213,9 @@ class SoloLatino : Source() {
         // Luego, hacemos la solicitud a la página del contenido para obtener los enlaces de los servidores
         val episodeResponse = client.newCall(GET(episodeUrl, headers)).execute()
         val document = episodeResponse.asJsoup()
-        var listHref = mutableListOf<String>()
-        document.select("button[data-player-token], button[data-server-btn]").mapNotNull {
+        val listHref = mutableListOf<String>()
+        document.select("button[data-player-token], button[data-server-btn]").mapNotNull { it ->
             val playerToken = it.attr("data-player-token")
-            val serverName = it.text().ifBlank { "Servidor" }
             // Si el botón tiene un token, hacemos una solicitud a la API.
             if (playerToken.isNotBlank()) {
                 // Construir la URL de la API usando el playerToken y headers
@@ -265,6 +267,7 @@ class SoloLatino : Source() {
     override fun getFilterList() = SoloLatinoFilters.FILTER_LIST
 
     // ============================= Preferences ============================
+    @SuppressLint("ApplySharedPref")
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
             key = "preferred_quality"
@@ -334,13 +337,13 @@ class SoloLatino : Source() {
         arrayOf(
             "Temporadas", "Estreno", "Último aire", "Duración", "País",
             "Idioma Original", "Título original", "Clasificación", "Certificación"
-        ).map {
+        ).forEach {
             val dataFound = node.selectFirst("div.detail-field:contains($it) > dd")?.text()
             if (dataFound != null) {
-                if (it == "Temporadas") {
-                    output += " • $dataFound temp."
+                output += if (it == "Temporadas") {
+                    " • $dataFound temp."
                 } else {
-                    output += "\n – $it: $dataFound"
+                    "\n – $it: $dataFound"
                 }
             }
         }
@@ -379,16 +382,7 @@ class SoloLatino : Source() {
                     else -> universalExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
                 }
             }.getOrDefault(emptyList()) // Manejo seguro de fallos
-        }.sort()/*.map { video ->
-            Video(
-                videoUrl = video.videoUrl,
-                videoTitle = video.videoTitle,
-                resolution = getFirstMatch("(\\d+)p", video.videoTitle)?.toIntOrNull(),
-                headers = video.headers,
-                subtitleTracks = video.subtitleTracks,
-                audioTracks = video.audioTracks,
-            )
-        }*/
+        }.sort()
     }
     // Ordenar los videos
     private fun List<Video>.sort(): List<Video> {

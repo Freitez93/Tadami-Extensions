@@ -236,14 +236,11 @@ class XupaLace(private val client: OkHttpClient) {
 
 class WolfstreamExtractor(private val client: OkHttpClient) {
     fun videosFromUrl(url: String, prefix: String = ""): List<Video> {
-        val requests = GET(url)
-        val mediaUrl = client.newCall(requests)
-            .execute()
-            .asJsoup()
+        val mediaUrl = client.newCall(GET(url)).execute().asJsoup()
             .selectFirst("script:containsData(sources)")
-            ?.let { script ->
-                script.data().substringAfter("{file:\"").substringBefore("\"")
-            } ?: return emptyList()
+            ?.data()
+            ?.substringAfter("{file:\"")
+            ?.substringBefore("\"") ?: return emptyList()
         return listOf(
             Video(videoTitle = "${prefix}WolfStream", videoUrl = mediaUrl),
         )
