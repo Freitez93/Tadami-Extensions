@@ -4,9 +4,9 @@
 
 A collection of extension catalogues for compatible Android anime players.
 
-| Install Repo | Build Status | Discord |
-|:------------:|:------------:|:-------:|
-| [![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=anizen://add-repo?url=https://raw.githubusercontent.com/Freitez93/aniyomi-extensions/repo/index.min.json) | ![CI](https://github.com/Freitez93/aniyomi-extensions/actions/workflows/build_push.yml/badge.svg) | [![Discord](https://img.shields.io/discord/1377136877491982366.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85MZhUX688) |
+| Install Repo | Build Status |
+|:------------:|:------------:|
+| [![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=anizen://add-repo?url=https://raw.githubusercontent.com/Freitez93/Tadami-Extensions/repo/index.min.json) | ![CI](https://github.com/Freitez93/Tadami-Extensions/actions/workflows/build_push.yml/badge.svg) |
 
 ![Visitor Count](https://count.getloli.com/get/@Freitez93?theme=capoo-2)
 
@@ -25,18 +25,18 @@ Click the **"Click here to install repo"** button in the table above if you are 
 Copy and paste the repository URL into your app's extension settings:
 
 ```text
-https://raw.githubusercontent.com/Freitez93/aniyomi-extensions/repo/index.min.json
+https://raw.githubusercontent.com/Freitez93/Tadami-Extensions/repo/index.min.json
 ```
 
 ### Option 3: Direct APK Download
-If you prefer manual APK installation, download the compiled files directly from the [`repo` branch](https://github.com/Freitez93/aniyomi-extensions/tree/repo/apk) of the repository.
+If you prefer manual APK installation, download the compiled files directly from the [`repo` branch](https://github.com/Freitez93/Tadami-Extensions/tree/repo/apk) of the repository.
 
 ---
 
 ## 🛠️ Requests and Issues
 
 To request a new source, suggest features, or report bug fixes:
-* Please [create an issue](https://github.com/Freitez93/aniyomi-extensions/issues/new/choose).
+* Please [create an issue](https://github.com/Freitez93/Tadami-Extensions/issues/new/choose).
 * Work is done entirely on a voluntary basis. Creating an issue does not guarantee immediate implementation or support.
 * Some sources might be too complex or difficult to maintain due to changes in source websites.
 
@@ -45,7 +45,7 @@ To request a new source, suggest features, or report bug fixes:
 ## 🤝 Contributing
 
 Contributions are highly appreciated!
-* Check out the [issue backlog](https://github.com/salmanbappi/sb-extensions-source/issues) for pending requests and bug reports.
+* Check out the [issue backlog](https://github.com/Freitez93/Tadami-Extensions/issues) for pending requests and bug reports.
 * Read the [CONTRIBUTING.md](./CONTRIBUTING.md) guide to get started with setup and development.
 * Please review and respect our [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
