@@ -204,7 +204,7 @@ class AnimeAV1 : Source() {
     // ========================= Funciones Auxiliares =======================
     private fun getExtraInfo(meta: MediaDateJSON, extra: List<String>): String {
         var output = "\n\n – Fecha de inicio: ${meta.startDate}"
-        output += "\n – ${extra[2]}"
+        output += "\n – ${extra[2].trim()}"
         output += "\n – Tipo de Anime: ${meta.type}"
         output += "\n – MyAnimeList ID: ${meta.malId}"
         output += "\n – Calificacion: ${meta.score}"
@@ -264,10 +264,9 @@ class AnimeAV1 : Source() {
         private val SERVERS = arrayOf(
             "PixelDrain",
             "StreamWish",
-            "StreamLare",
             "YourUpload",
-            "DoodStream",
             "MP4Upload",
+            "UPNShare",
             "VidHide",
             "Voe",
             "HLS"

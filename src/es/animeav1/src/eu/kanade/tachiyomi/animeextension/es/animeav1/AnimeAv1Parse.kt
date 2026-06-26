@@ -121,7 +121,7 @@ private fun extractUrls(dataObj: JSONObject, key: String): Map<String, List<Embe
                 }
             }.filterNotNull()
             if (validItems.isNotEmpty()) {
-                resultMap[category] = validItems.distinctBy { it.url }
+                resultMap[category] = validItems
             }
         }
         resultMap.takeIf { it.isNotEmpty() }
