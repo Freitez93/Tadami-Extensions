@@ -149,7 +149,7 @@ jobs:
       - name: Create repo artifacts
         run: |
           cd master
-          python ./.github/scripts/move-built-apks.py
+          python ./.github/scripts/move-apks.py
           java -jar ./.github/scripts/Inspector.jar "repo/apk" "output.json" "tmp"
           python ./.github/scripts/create-repo.py
 
