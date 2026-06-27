@@ -1,5 +1,5 @@
 ext {
-    extName = 'SoloLatino+'
+    extName = 'SoloLatino'
     extClass = '.SoloLatino'
     extVersionCode = 1
     isNsfw = false

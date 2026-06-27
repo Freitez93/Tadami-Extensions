@@ -30,7 +30,7 @@ import java.util.Locale
 
 
 class SoloLatino : Source() {
-    override val name = "SoloLatino+"
+    override val name = "SoloLatino"
     override val baseUrl = "https://sololatino.net"
     override val lang = "es"
     override val supportsLatest = true

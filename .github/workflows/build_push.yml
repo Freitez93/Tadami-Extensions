@@ -150,18 +150,8 @@ jobs:
         run: |
           cd master
           python ./.github/scripts/move-apks.py
-          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/komikku-app/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
-          curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
-          # Ejecutar Inspector y guardar stdout/stderr para diagnóstico
-          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp" 2>&1 | tee inspector.log
+          java -jar ./.github/scripts/Inspector.jar "repo/apk" "output.json" "tmp"
           python ./.github/scripts/create-repo.py
-
-      - name: Upload inspector log (for debugging)
-        uses: actions/upload-artifact@v4
-        with:
-          name: inspector-log
-          path: master/inspector.log
-          retention-days: 1
 
       - name: Checkout repo branch
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
