@@ -18,7 +18,7 @@ import eu.kanade.tachiyomi.lib.vidhideextractor.VidHideExtractor
 import eu.kanade.tachiyomi.lib.lpayerextractor.LpayerExtractor
 import eu.kanade.tachiyomi.lib.voeextractor.VoeExtractor
 import eu.kanade.tachiyomi.lib.youruploadextractor.YourUploadExtractor
-import extensions.utils.Source
+import keiyoushi.utils.Source
 import keiyoushi.utils.parallelCatchingFlatMapBlocking
 import okhttp3.Request
 import okhttp3.Response
@@ -142,6 +142,15 @@ class AnimeAV1 : Source() {
     // ============================= Preferences ============================
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
+            key = "preferred_lang"
+            title = "Idioma Preferido"
+            entries = LANGUAGES_DISPLAY
+            entryValues = LANGUAGES_VALUES
+            setDefaultValue(LANGNGUAGE_DEFAULT)
+            summary = "%s"
+        }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Calidad Preferida"
             entries = QUALITIES
@@ -218,8 +227,8 @@ class AnimeAV1 : Source() {
         return sortedWith(
             compareBy(
                 { it.videoTitle.contains(lang, true) },
-                { it.videoTitle.contains(server, true) },
                 { it.videoTitle.contains(quality) },
+                { it.videoTitle.contains(server, true) },
                 { Regex("""(\d+)p""").find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 },
             ),
         ).reversed()

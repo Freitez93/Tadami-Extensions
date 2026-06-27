@@ -15,7 +15,7 @@ import eu.kanade.tachiyomi.lib.universalextractor.UniversalExtractor
 import eu.kanade.tachiyomi.lib.uqloadextractor.UqloadExtractor
 import eu.kanade.tachiyomi.lib.vidhideextractor.VidHideExtractor
 import eu.kanade.tachiyomi.lib.voeextractor.VoeExtractor
-import extensions.utils.Source
+import keiyoushi.utils.Source
 import keiyoushi.utils.parallelFlatMapBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -261,14 +261,22 @@ class SoloLatino : Source() {
                 }
                 else -> emptyList()
             }
-        }
+        }.sort()
     }
     // ============================== Filters ===============================
     override fun getFilterList() = SoloLatinoFilters.FILTER_LIST
 
     // ============================= Preferences ============================
-    @SuppressLint("ApplySharedPref")
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        ListPreference(screen.context).apply {
+            key = "preferred_lang"
+            title = "Idioma Preferido"
+            entries = LANGUAGES_DISPLAY
+            entryValues = LANGUAGES_VALUES
+            setDefaultValue(LANGNGUAGE_DEFAULT)
+            summary = "%s"
+        }.also(screen::addPreference)
+
         ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Calidad Preferida"
@@ -276,17 +284,6 @@ class SoloLatino : Source() {
             entryValues = QUALITIES
             setDefaultValue(QUALITY_DEFAULT)
             summary = "%s"
-
-            setOnPreferenceChangeListener { _, newValue ->
-                val selected = newValue as String
-                val index = findIndexOfValue(selected)
-                if (index != -1) {
-                    val entry = entryValues[index] as String
-                    preferences.edit().putString(key, entry).commit()
-                } else {
-                    true
-                }
-            }
         }.also(screen::addPreference)
 
         ListPreference(screen.context).apply {
@@ -296,37 +293,6 @@ class SoloLatino : Source() {
             entryValues = SERVERS
             setDefaultValue(SERVER_DEFAULT)
             summary = "%s"
-
-            setOnPreferenceChangeListener { _, newValue ->
-                val selected = newValue as String
-                val index = findIndexOfValue(selected)
-                if (index != -1) {
-                    val entry = entryValues[index] as String
-                    preferences.edit().putString(key, entry).commit()
-                } else {
-                    true
-                }
-            }
-        }.also(screen::addPreference)
-
-        ListPreference(screen.context).apply {
-            key = "preferred_lang"
-            title = "Idioma Preferido"
-            entries = LANGUAGES_DISPLAY
-            entryValues = LANGUAGES_VALUES
-            setDefaultValue(LANGNGUAGE_DEFAULT)
-            summary = "%s"
-
-            setOnPreferenceChangeListener { _, newValue ->
-                val selected = newValue as String
-                val index = findIndexOfValue(selected)
-                if (index != -1) {
-                    val entry = entryValues[index] as String
-                    preferences.edit().putString(key, entry).commit()
-                } else {
-                    true
-                }
-            }
         }.also(screen::addPreference)
     }
 
@@ -382,7 +348,7 @@ class SoloLatino : Source() {
                     else -> universalExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
                 }
             }.getOrDefault(emptyList()) // Manejo seguro de fallos
-        }.sort()
+        }
     }
     // Ordenar los videos
     private fun List<Video>.sort(): List<Video> {
@@ -392,8 +358,8 @@ class SoloLatino : Source() {
         return sortedWith(
             compareBy(
                 { it.videoTitle.contains(lang, true) },
-                { it.videoTitle.contains(server, true) },
                 { it.videoTitle.contains(quality) },
+                { it.videoTitle.contains(server, true) },
             ),
         ).reversed()
     }
