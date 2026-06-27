@@ -7,11 +7,11 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import okhttp3.OkHttpClient
 
 class Embed69(private val client: OkHttpClient) {
     suspend fun getLinks(url: String): Map<String, List<String>> {
@@ -31,15 +31,15 @@ class Embed69(private val client: OkHttpClient) {
                     }
 
                 // Extraer POW_CHALLENGE y POW_SALT
-                val CHALLENGE = getFirstMatch("""POW_CHALLENGE\s*=\s*['"]([^'"]+)['"]""", pageHtml)
-                val POW_SALT = getFirstMatch("""POW_SALT\s*=\s*['"]([^'"]+)['"]""", pageHtml)
-                if (CHALLENGE == null || POW_SALT == null) {
+                val challenge = getFirstMatch("""POW_CHALLENGE\s*=\s*['"]([^'"]+)['"]""", pageHtml)
+                val powSalt = getFirstMatch("""POW_SALT\s*=\s*['"]([^'"]+)['"]""", pageHtml)
+                if (challenge == null || powSalt == null) {
                     Log.e("Embed69", "No se pudo extraer POW_CHALLENGE o POW_SALT de: $url")
                     return@withContext emptyMap()
                 }
 
                 // Resolver PoW
-                val aesKey = solveEmbed69PoW(CHALLENGE, POW_SALT)
+                val aesKey = solveEmbed69PoW(challenge, powSalt)
                 if (aesKey == null) {
                     Log.e("Embed69", "PoW falló para: $url")
                     return@withContext emptyMap()
@@ -132,31 +132,29 @@ class Embed69(private val client: OkHttpClient) {
     }
 
     // Parsear JSON de dataLink
-    private fun parseServersByLang(json: String): List<ServersByLang>? {
-        return try {
-            val jsonArray = org.json.JSONArray(json)
-            val result = mutableListOf<ServersByLang>()
-            for (i in 0 until jsonArray.length()) {
-                val fileObject = jsonArray.getJSONObject(i)
-                val language = fileObject.optString("video_language")
-                val embeds = fileObject.optJSONArray("sortedEmbeds") ?: continue
-                val sortedEmbeds = mutableListOf<ServersByLang.Server>()
-                for (j in 0 until embeds.length()) {
-                    val embedObj = embeds.getJSONObject(j)
-                    sortedEmbeds.add(
-                        ServersByLang.Server(
-                            servername = embedObj.optString("servername"),
-                            link = embedObj.optString("link")
-                        )
-                    )
-                }
-                result.add(ServersByLang(fileId = fileObject.optString("file_id"), videoLanguage = language, sortedEmbeds = sortedEmbeds))
+    private fun parseServersByLang(json: String): List<ServersByLang>? = try {
+        val jsonArray = org.json.JSONArray(json)
+        val result = mutableListOf<ServersByLang>()
+        for (i in 0 until jsonArray.length()) {
+            val fileObject = jsonArray.getJSONObject(i)
+            val language = fileObject.optString("video_language")
+            val embeds = fileObject.optJSONArray("sortedEmbeds") ?: continue
+            val sortedEmbeds = mutableListOf<ServersByLang.Server>()
+            for (j in 0 until embeds.length()) {
+                val embedObj = embeds.getJSONObject(j)
+                sortedEmbeds.add(
+                    ServersByLang.Server(
+                        servername = embedObj.optString("servername"),
+                        link = embedObj.optString("link"),
+                    ),
+                )
             }
-            result
-        } catch (e: Exception) {
-            Log.e("Embed69", "Error al parsear JSON: ${e.message}")
-            null
+            result.add(ServersByLang(fileId = fileObject.optString("file_id"), videoLanguage = language, sortedEmbeds = sortedEmbeds))
         }
+        result
+    } catch (e: Exception) {
+        Log.e("Embed69", "Error al parsear JSON: ${e.message}")
+        null
     }
 
     // Data classes
@@ -229,9 +227,7 @@ class XupaLace(private val client: OkHttpClient) {
     }
 
     // Función para obtener el primer match de un regex
-    private fun getFirstMatch(pattern: String, input: String): String? {
-        return Regex(pattern).find(input)?.groupValues?.get(1)
-    }
+    private fun getFirstMatch(pattern: String, input: String): String? = Regex(pattern).find(input)?.groupValues?.get(1)
 }
 
 class WolfstreamExtractor(private val client: OkHttpClient) {
@@ -248,9 +244,7 @@ class WolfstreamExtractor(private val client: OkHttpClient) {
 }
 
 // ================================ Funciones Auxiliares ================================
-fun getFirstMatch(pattern: String, input: String): String? {
-    return pattern.toRegex().find(input)?.groupValues?.get(1)
-}
+fun getFirstMatch(pattern: String, input: String): String? = pattern.toRegex().find(input)?.groupValues?.get(1)
 
 private fun fixHostsLinks(url: String): String {
     val replacements = mapOf(
@@ -266,7 +260,7 @@ private fun fixHostsLinks(url: String): String {
         "sblona.com" to "watchsb.com",
         "lulu.st" to "lulustream.com",
         "uqload.io" to "uqload.com",
-        "do7go.com" to "dood.la"
+        "do7go.com" to "dood.la",
     )
     var result = url
     for ((from, to) in replacements) {

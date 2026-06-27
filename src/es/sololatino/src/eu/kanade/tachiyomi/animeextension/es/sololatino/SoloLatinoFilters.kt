@@ -11,14 +11,10 @@ object SoloLatinoFilters {
         fun toUriPart() = vals[state].second
     }
 
-    private inline fun <reified R> AnimeFilterList.getFirst(): R {
-        return first { it is R } as R
-    }
+    private inline fun <reified R> AnimeFilterList.getFirst(): R = first { it is R } as R
 
-    private inline fun <reified R> AnimeFilterList.asUriPart(): String {
-        return getFirst<R>().let {
-            (it as UriPartFilter).toUriPart()
-        }
+    private inline fun <reified R> AnimeFilterList.asUriPart(): String = getFirst<R>().let {
+        (it as UriPartFilter).toUriPart()
     }
 
     class PlatformFilter : UriPartFilter("Plataformas", AnimesOnlineNinjaData.PLATFORMS)
@@ -28,20 +24,18 @@ object SoloLatinoFilters {
     class NoteFilter : UriPartFilter("Nota", AnimesOnlineNinjaData.NOTE)
     class SortFilter : UriPartFilter("Ordenar", AnimesOnlineNinjaData.SORT)
 
+    class OtherOptionsGroup :
+        AnimeFilter.Group<UriPartFilter>(
+            "Otros filtros",
+            listOf(
+                GenreFilter(),
+                YearFilter(),
+                NoteFilter(),
+                SortFilter(),
+            ),
+        )
 
-    class OtherOptionsGroup : AnimeFilter.Group<UriPartFilter>(
-        "Otros filtros",
-        listOf(
-            GenreFilter(),
-            YearFilter(),
-            NoteFilter(),
-            SortFilter(),
-        ),
-    )
-
-    private inline fun <reified R> AnimeFilter.Group<UriPartFilter>.getItemUri(): String {
-        return state.first { it is R }.toUriPart()
-    }
+    private inline fun <reified R> AnimeFilter.Group<UriPartFilter>.getItemUri(): String = state.first { it is R }.toUriPart()
 
     val FILTER_LIST get() = AnimeFilterList(
         PlatformFilter(),
@@ -57,7 +51,7 @@ object SoloLatinoFilters {
         val genre: String = "",
         val year: String = "0",
         val note: String = "0",
-        val sort: String = ""
+        val sort: String = "",
     )
 
     internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
@@ -90,7 +84,7 @@ object SoloLatinoFilters {
             Pair("HBO Max", "hbo-max"),
             Pair("HBO", "hbo"),
             Pair("Bs11", "bs11"),
-            Pair("Nbc", "nbc")
+            Pair("Nbc", "nbc"),
         )
 
         val TYPES = arrayOf(
@@ -130,7 +124,7 @@ object SoloLatinoFilters {
             Pair("Talk", "talk"),
             Pair("Terror", "terror"),
             Pair("War & Politics", "war-politics"),
-            Pair("Western", "western")
+            Pair("Western", "western"),
         )
 
         val YEARS = arrayOf(EVERYZERO) + (2026 downTo 1979).map {
@@ -143,7 +137,7 @@ object SoloLatinoFilters {
             Pair("8+ Excelente", "8"),
             Pair("7+ Muy buena", "7"),
             Pair("6+ Buena", "6"),
-            Pair("5+ Regular", "5")
+            Pair("5+ Regular", "5"),
         )
 
         val SORT = arrayOf(
@@ -152,7 +146,7 @@ object SoloLatinoFilters {
             Pair("Mejor nota", "nota"),
             Pair("Año: nuevo a viejo", "año-desc"),
             Pair("Año: viejo a nuevo", "año-asc"),
-            Pair("A-Z", "az")
+            Pair("A-Z", "az"),
         )
     }
 }
