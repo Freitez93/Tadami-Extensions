@@ -4,9 +4,9 @@
 
 A collection of extension catalogues for compatible Android anime players.
 
-| Install Repo | Build Status |
-|:------------:|:------------:|
-| [![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=anizen://add-repo?url=https://raw.githubusercontent.com/Freitez93/Tadami-Extensions/repo/index.min.json) | ![CI](https://github.com/Freitez93/Tadami-Extensions/actions/workflows/build_push.yml/badge.svg) |
+| Install Tadami | Install Aniyomi | Build Status |
+|:--------------:|:---------------:|:------------:|
+| [![Install](https://img.shields.io/badge/Click%20here%20to%20install-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=tadami://add-repo?url=https://raw.githubusercontent.com/Freitez93/Tadami-Extensions/repo/index.min.json) | [![Install](https://img.shields.io/badge/Click%20here%20to%20install-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=aniyomi://add-repo?url=https://raw.githubusercontent.com/Freitez93/Tadami-Extensions/repo/index.min.json) |![CI](https://github.com/Freitez93/Tadami-Extensions/actions/workflows/build_push.yml/badge.svg) |
 
 ![Visitor Count](https://count.getloli.com/get/@Freitez93?theme=capoo-2)
 
@@ -19,7 +19,7 @@ This repository contains the source code for various anime extensions.
 ## 🚀 How to Add the Repository
 
 ### Option 1: Automatic
-Click the **"Click here to install repo"** button in the table above if you are on a compatible device with an extension installer.
+Click the **"Click here to install"** button in the table above if you are on a compatible device with an extension installer.
 
 ### Option 2: Manual Link
 Copy and paste the repository URL into your app's extension settings:
