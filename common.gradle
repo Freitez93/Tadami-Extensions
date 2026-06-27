@@ -36,7 +36,7 @@ android {
         targetSdk 34
         applicationId pkgName
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
-        versionName "16.$versionCode"
+        versionName "14.$versionCode"
         base {
             archivesName = "aniyomi-${project.parent.name}.${project.name}-v$versionName"
         }
@@ -71,7 +71,9 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), "$rootDir/common/proguard-rules.pro"
         }
     }
 
@@ -117,6 +119,7 @@ dependencies {
     implementation(project(":core"))
     implementation(libs.commons.text)
     compileOnly(libs.bundles.common)
+    compileOnly(libs.kotlin.stdlib)
 }
 
 configurations.configureEach {
