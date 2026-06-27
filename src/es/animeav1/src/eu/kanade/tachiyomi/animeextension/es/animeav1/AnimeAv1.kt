@@ -23,7 +23,6 @@ import keiyoushi.utils.parallelCatchingFlatMapBlocking
 import okhttp3.Request
 import okhttp3.Response
 
-
 class AnimeAV1 : Source() {
     override val name = "AnimeAV1"
     override val baseUrl = "https://animeav1.com"
