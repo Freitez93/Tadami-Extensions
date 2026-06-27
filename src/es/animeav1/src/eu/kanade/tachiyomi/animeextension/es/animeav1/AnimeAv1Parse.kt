@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.es.animeav1
 
-import eu.kanade.tachiyomi.animesource.model.SAnime
 import android.util.Log
+import eu.kanade.tachiyomi.animesource.model.SAnime
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,7 +36,7 @@ fun getMediaInfo(scriptContent: String): MediaDateJSON? {
         }
         // Construir el objeto final combinando info + embeds
         mediaData?.copy(
-            embeds = allEmbeds.takeIf { it.isNotEmpty() }
+            embeds = allEmbeds.takeIf { it.isNotEmpty() },
         ) ?: allEmbeds.takeIf { it.isNotEmpty() }?.let {
             MediaDateJSON(embeds = it)
         }
@@ -76,7 +76,7 @@ private fun parseMediaObject(mediaObj: JSONObject): MediaDateJSON {
         malId = mediaObj.optInt("malId"),
         episodesCount = mediaObj.optInt("episodesCount"),
         startEpisode = startEpisode,
-        recommendations = parseRecommendations(mediaObj.optJSONArray("relations"))
+        recommendations = parseRecommendations(mediaObj.optJSONArray("relations")),
     )
 }
 
@@ -91,9 +91,11 @@ private fun parseRecommendations(relationsArray: JSONArray?): List<MediaRelation
                 type = item.optInt("type", 0),
                 title = dest.optString("title"),
                 href = "/media/${dest.optString("slug")}",
-                posterUrl = "https://cdn.animeav1.com/covers/${dest.optInt("id")}.jpg"
+                posterUrl = "https://cdn.animeav1.com/covers/${dest.optInt("id")}.jpg",
             )
-        } else null
+        } else {
+            null
+        }
     }.filterNotNull()
 }
 
@@ -115,9 +117,11 @@ private fun extractUrls(dataObj: JSONObject, key: String): Map<String, List<Embe
                         if ("pixeldrain" in url) url = url.replace("?embed", "")
                         EmbedInfo(
                             server = item.optString("server", "Unknow"),
-                            url = url
+                            url = url,
                         )
-                    } else null
+                    } else {
+                        null
+                    }
                 }
             }.filterNotNull()
             if (validItems.isNotEmpty()) {
@@ -132,17 +136,15 @@ private fun extractUrls(dataObj: JSONObject, key: String): Map<String, List<Embe
 }
 
 // Limpia un string de JS para convertirlo en JSON válido.
-private fun cleanJsToJson(js: String): String {
-    return js.replace("void 0", "null").replace(
-        Regex("""(?<=[{,])\s*(\w+)\s*:""")
-    ) {
-        "\"${it.groupValues[1]}\":"
-    }.trim()
-}
+private fun cleanJsToJson(js: String): String = js.replace("void 0", "null").replace(
+    Regex("""(?<=[{,])\s*(\w+)\s*:"""),
+) {
+    "\"${it.groupValues[1]}\":"
+}.trim()
 
-//-------------------------------------//
+// -------------------------------------//
 //              data class             //
-//-------------------------------------//
+// -------------------------------------//
 // data class MediaDateJSON
 data class MediaDateJSON(
     val mediaID: Int? = null,
@@ -158,17 +160,19 @@ data class MediaDateJSON(
     val genre: List<String>? = null,
     val synopsis: String? = null,
     val embeds: Map<String, List<EmbedInfo>>? = null,
-    val recommendations: List<MediaRelation>? = null
+    val recommendations: List<MediaRelation>? = null,
 )
+
 // data class MediaRelation
 data class MediaRelation(
     val type: Int,
     val title: String,
     val href: String,
-    val posterUrl: String
+    val posterUrl: String,
 )
+
 // data class EmbedInfo
 data class EmbedInfo(
     val server: String,
-    val url: String
+    val url: String,
 )

@@ -66,6 +66,7 @@ class PluginExtensionLegacy : Plugin<Project> {
                 assertWithoutFlag(extClass.startsWith(".")) { "'extClass' must start with '.'" }
                 manifestPlaceholders += mapOf(
                     "appName" to "Aniyomi: $extName",
+                    "author" to "Freitez93",
                     "extClass" to extClass,
                     "nsfw" to if (isNsfw) 1 else 0,
                 )
@@ -117,10 +118,6 @@ class PluginExtensionLegacy : Plugin<Project> {
 
             buildTypes {
                 configureEach {
-                    buildConfigField("String", "MEGACLOUD_API", "\"https://script.google.com/macros/s/AKfycbxHbYHbrGMXYD2-bC-C43D3njIbU-wGiYQuJL61H4vyy6YVXkybMNNEPJNPPuZrD1gRVA/exec\"")
-                    buildConfigField("String", "KISSKH_API", "\"https://script.google.com/macros/s/AKfycbzn8B31PuDxzaMa9_CQ0VGEDasFqfzI5bXvjaIZH4DM8DNq9q6xj1ALvZNz_JT3jF0suA/exec?id=\"")
-                    buildConfigField("String", "KISSKH_SUB_API", "\"https://script.google.com/macros/s/AKfycbyq6hTj0ZhlinYC6xbggtgo166tp6XaDKBCGtnYk8uOfYBUFwwxBui0sGXiu_zIFmA/exec?id=\"")
-                    buildConfigField("String", "KAISVA", "\"https://c-kai-8090.amarullz.com\"")
                     buildConfigField("String", "TMDB_API", "\"${System.getenv("TMDB_API")}\"")
                 }
             }
