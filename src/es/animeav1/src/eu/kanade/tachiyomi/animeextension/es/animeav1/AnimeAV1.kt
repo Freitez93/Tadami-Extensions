@@ -130,11 +130,11 @@ class AnimeAV1 : Source() {
     }
 
     // =============================== Video ================================
-    override fun videoListRequest(episode: SEpisode): Request = GET(episode.url, headers)
+    override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
-        val script = document.selectFirst("script:containsData(__sveltekit)")?.data()
-            ?: return emptyList()
+        val script = document.selectFirst("script:containsData(__sveltekit)")?.data() ?: ""
+
         val mediaData = getMediaInfo(script) ?: return emptyList()
         val videoList = mutableListOf<Video>()
         mediaData.embeds?.map { (lang, embdes) ->
@@ -244,6 +244,14 @@ class AnimeAV1 : Source() {
                 { Regex("""(\d+)p""").find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 },
             ),
         ).reversed()
+    }
+
+    // Obtenert una URL absoluta usando baseUrl.
+    private fun absUrl(path: String): String = when {
+        path.startsWith("http") -> path
+        path.startsWith("//") -> "https:$path"
+        path.startsWith("/") -> baseUrl + path
+        else -> path
     }
 
     companion object {

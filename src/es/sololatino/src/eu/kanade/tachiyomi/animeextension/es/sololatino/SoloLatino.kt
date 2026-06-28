@@ -216,7 +216,7 @@ class SoloLatino : Source() {
     }
 
     // =============================== Video ================================
-    override fun videoListRequest(episode: SEpisode): Request = GET(episode.url, headers)
+    override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
     override fun videoListParse(response: Response): List<Video> {
         val episodeUrl = response.request.url.toString()
         // Primero, obtenemos las cookies necesarias para autenticarnos con Sanctum
@@ -377,6 +377,14 @@ class SoloLatino : Source() {
                 { it.videoTitle.contains(server, true) },
             ),
         ).reversed()
+    }
+
+    // Obtenert una URL absoluta usando baseUrl.
+    private fun absUrl(path: String): String = when {
+        path.startsWith("http") -> path
+        path.startsWith("//") -> "https:$path"
+        path.startsWith("/") -> baseUrl + path
+        else -> path
     }
 
     companion object {
