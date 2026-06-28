@@ -113,7 +113,7 @@ class AnimeAV1 : Source() {
                 val epUrl = "$baseUrl/media/${mediaInfo.slug}/$i"
                 episodes.add(
                     SEpisode.create().apply {
-                        this.url = epUrl
+                        setUrlWithoutDomain(epUrl)
                         this.name = "Episode ${if (epStart == 0) i + 1 else i}"
                         this.date_upload = 0
                         this.episode_number = i.toFloat()
@@ -176,15 +176,6 @@ class AnimeAV1 : Source() {
             entries = SERVERS
             entryValues = SERVERS
             setDefaultValue(SERVER_DEFAULT)
-            summary = "%s"
-        }.also(screen::addPreference)
-
-        ListPreference(screen.context).apply {
-            key = "preferred_lang"
-            title = "Idioma Preferido"
-            entries = LANGUAGES_DISPLAY
-            entryValues = LANGUAGES_VALUES
-            setDefaultValue(LANGNGUAGE_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
     }
