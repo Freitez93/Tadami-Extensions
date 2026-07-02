@@ -24,8 +24,22 @@ class UniversalExtractor(private val client: OkHttpClient) {
     private val handler by lazy { Handler(Looper.getMainLooper()) }
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun videosFromUrl(origRequestUrl: String, origRequestHeader: Headers, customQuality: String? = null, prefix: String = ""): List<Video> {
-        val host = origRequestUrl.toHttpUrl().host.substringBefore(".").proper()
+    fun videosFromUrl(
+        origRequestUrl: String,
+        origRequestHeader: Headers,
+        customQuality: String? = null,
+        prefix: String = "",
+    ) = videosFromUrl(origRequestUrl, origRequestHeader, customQuality) {
+        "$prefix${getHost(origRequestUrl)} - $it"
+    }
+    fun videosFromUrl(
+        origRequestUrl: String,
+        origRequestHeader: Headers,
+        customQuality: String? = null,
+        videoNameGen: ((String) -> String)? = null,
+    ): List<Video> {
+        val host = getHost(origRequestUrl)
+        val nameGen: (String) -> String = videoNameGen ?: { "$host:$it" }
         val latch = CountDownLatch(1)
         var webView: WebView? = null
         var resultUrl = ""
@@ -56,12 +70,10 @@ class UniversalExtractor(private val client: OkHttpClient) {
                     return super.shouldInterceptRequest(view, request)
                 }
             }
-
             webView?.loadUrl(origRequestUrl, headers)
         }
 
         latch.await(TIMEOUT_SEC, TimeUnit.SECONDS)
-
         handler.post {
             webView?.stopLoading()
             webView?.destroy()
@@ -74,7 +86,7 @@ class UniversalExtractor(private val client: OkHttpClient) {
 
             for (quality in qualities) {
                 val modifiedUrl = resultUrl.replace("M3U8_AUTO_360", "M3U8_AUTO_$quality")
-                val videos = playlistUtils.extractFromHls(modifiedUrl, origRequestUrl, videoNameGen = { "$prefix$host:$it ${quality}p" })
+                val videos = playlistUtils.extractFromHls(modifiedUrl, origRequestUrl, videoNameGen = { "${nameGen(it)} ${quality}p" })
 
                 if (videos.isNotEmpty()) {
                     allVideos.addAll(videos)
@@ -90,17 +102,23 @@ class UniversalExtractor(private val client: OkHttpClient) {
         return when {
             "m3u8" in resultUrl -> {
                 Log.d("UniversalExtractor", "m3u8 URL: $resultUrl")
-                playlistUtils.extractFromHls(resultUrl, origRequestUrl, videoNameGen = { "$prefix$host:$it" })
+                playlistUtils.extractFromHls(resultUrl, origRequestUrl, videoNameGen = nameGen)
             }
 
             "mpd" in resultUrl -> {
                 Log.d("UniversalExtractor", "mpd URL: $resultUrl")
-                playlistUtils.extractFromDash(resultUrl, { it -> "$prefix$host:$it" }, referer = origRequestUrl)
+                playlistUtils.extractFromDash(resultUrl, nameGen, referer = origRequestUrl)
             }
 
             "mp4" in resultUrl -> {
                 Log.d("UniversalExtractor", "mp4 URL: $resultUrl")
-                Video(videoUrl = resultUrl, videoTitle = "$prefix$host:${customQuality ?: "Mirror"}", headers = origRequestHeader.newBuilder().add("referer", origRequestUrl).build()).let(::listOf)
+                Video(
+                    videoUrl = resultUrl,
+                    videoTitle = nameGen(customQuality ?: "Mirror"),
+                    headers = origRequestHeader.newBuilder()
+                        .add("referer", origRequestUrl)
+                        .build(),
+                ).let(::listOf)
             }
 
             else -> emptyList()
@@ -114,6 +132,8 @@ class UniversalExtractor(private val client: OkHttpClient) {
             it.toString()
         }
     }
+
+    private fun getHost(url: String): String = url.toHttpUrl().host.substringBefore(".").proper()
 
     companion object {
         const val TIMEOUT_SEC: Long = 10
