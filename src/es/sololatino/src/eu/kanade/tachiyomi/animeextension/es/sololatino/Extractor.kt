@@ -60,7 +60,7 @@ class Embed69(private val client: OkHttpClient) {
                             val decryptedUrl = decryptAESLocal(encrypted, aesKey)
                             if (!decryptedUrl.isNullOrBlank()) {
                                 val fixedUrl = fixHostsLinks(decryptedUrl)
-                                Log.d("SoloLatino", "$decryptedUrl -> $fixedUrl")
+                                Log.d("Embed69", "$decryptedUrl -> $fixedUrl")
                                 val language = lang.videoLanguage ?: "Unknown"
                                 allLinksByLanguage.getOrPut(language) {
                                     mutableListOf()
@@ -171,7 +171,7 @@ class Embed69(private val client: OkHttpClient) {
 }
 
 class XupaLace(private val client: OkHttpClient) {
-    suspend fun getLinks(url: String): Map<String, List<String>> {
+    fun getLinks(url: String): Map<String, List<String>> {
         return try {
             val document = client.newCall(GET(url)).execute().asJsoup()
             val mapUrl = mapOf(
@@ -194,7 +194,6 @@ class XupaLace(private val client: OkHttpClient) {
                             Log.e("XupaLace", "Error al procesar onclick: ${error.message}", error)
                         }.getOrNull()
                     }
-                    .filterNotNull()
 
                 if (langLinks.isNotEmpty()) {
                     langLinks.forEach { link ->
@@ -230,33 +229,17 @@ class XupaLace(private val client: OkHttpClient) {
     private fun getFirstMatch(pattern: String, input: String): String? = Regex(pattern).find(input)?.groupValues?.get(1)
 }
 
-class WolfstreamExtractor(private val client: OkHttpClient) {
-    fun videosFromUrl(url: String, prefix: String = ""): List<Video> {
-        val mediaUrl = client.newCall(GET(url)).execute().asJsoup()
-            .selectFirst("script:containsData(sources)")
-            ?.data()
-            ?.substringAfter("{file:\"")
-            ?.substringBefore("\"") ?: return emptyList()
-        return listOf(
-            Video(videoTitle = "${prefix}WolfStream", videoUrl = mediaUrl),
-        )
-    }
-}
-
 // ================================ Funciones Auxiliares ================================
 fun getFirstMatch(pattern: String, input: String): String? = pattern.toRegex().find(input)?.groupValues?.get(1)
 
 private fun fixHostsLinks(url: String): String {
     val replacements = mapOf(
-        "swdyu.com" to "streamwish.to",
-        "cybervynx.com" to "streamwish.to",
-        "dumbalag.com" to "streamwish.to",
         "mivalyo.com" to "vidhidepro.com",
         "dinisglows.com" to "vidhidepro.com",
         "dhtpre.com" to "vidhidepro.com",
         "minochinos.com" to "vidhidepro.com",
-        "filemoon.link" to "filemoon.sx",
-        "bysedikamoum.com" to "filemoon.sx",
+        // "filemoon.link" to "filemoon.sx",
+        // "bysedikamoum.com" to "filemoon.sx",
         "sblona.com" to "watchsb.com",
         "lulu.st" to "lulustream.com",
         "uqload.io" to "uqload.com",

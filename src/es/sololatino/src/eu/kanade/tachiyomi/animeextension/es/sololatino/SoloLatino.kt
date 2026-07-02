@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.animeextension.es.sololatino
 
-import android.annotation.SuppressLint
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -10,9 +9,8 @@ import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.lib.filemoonextractor.FilemoonExtractor
+import eu.kanade.tachiyomi.lib.byseextractor.ByseExtractor
 import eu.kanade.tachiyomi.lib.mp4uploadextractor.Mp4uploadExtractor
-import eu.kanade.tachiyomi.lib.streamwishextractor.StreamWishExtractor
 import eu.kanade.tachiyomi.lib.universalextractor.UniversalExtractor
 import eu.kanade.tachiyomi.lib.uqloadextractor.UqloadExtractor
 import eu.kanade.tachiyomi.lib.vidhideextractor.VidHideExtractor
@@ -29,7 +27,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import org.jsoup.nodes.Element
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -67,7 +64,7 @@ class SoloLatino : Source() {
         else if (query.isNotEmpty()) {
             finalQuery = finalQuery.toHttpUrlOrNull()!!.newBuilder()
                 .addPathSegment("buscar")
-                .addQueryParameter("q", URLEncoder.encode(query, "utf-8"))
+                .addQueryParameter("q", query)
                 .addQueryParameter("genero", params.genre)
                 .addQueryParameter("año", params.year)
                 .addQueryParameter("nota", params.note)
@@ -107,35 +104,29 @@ class SoloLatino : Source() {
         return GET(finalQuery, headers)
     }
     override fun searchAnimeParse(response: Response): AnimesPage {
-        val doc = response.asJsoup()
-        val animeList = mutableListOf<SAnime>()
-        doc.select("div.card").forEach { element ->
-            val item = parseAnimeItem(element)
-            if (item.title != "Unknown Title") {
-                animeList.add(item)
+        val document = response.asJsoup()
+        val nextPage = document.select("a[rel=next]").any()
+        val animeList = document.select("div.card").map {
+            val url = it.selectFirst("a")!!.attr("href")
+            SAnime.create().apply {
+                this.url = absUrl(url)
+                this.title = it.selectFirst("img")?.attr("alt") ?: "Not Title"
+                this.thumbnail_url = it.selectFirst("img")?.attr("src")
+                    ?: "https://sololatino.net/images/no-poster.jpg"
+                this.fetch_type = FetchType.Episodes
             }
         }
-        val hasNextPage = doc.select("a[rel=next]").isNotEmpty()
-        return AnimesPage(animeList.distinctBy { it.url }, hasNextPage)
-    }
-    private fun parseAnimeItem(element: Element): SAnime = SAnime.create().apply {
-        this.url = element.selectFirst("a")?.attr("href") ?: return@apply
-        this.title = element.selectFirst("img")?.attr("alt") ?: "Unknown Title"
-        this.thumbnail_url = element.selectFirst("img")
-            ?.attr("src")
-            ?: "https://sololatino.net/images/no-poster.jpg"
-        // fetch_type = FetchType.Episodes
+        return AnimesPage(animeList, nextPage)
     }
 
     // =========================== Anime Details ============================
     override fun animeDetailsRequest(anime: SAnime): Request = GET(anime.url, headers)
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
+        val img = doc.selectFirst("div > img[style]")?.attr("src")
         return SAnime.create().apply {
             this.title = doc.selectFirst("div > img[style]")!!.attr("alt")
-            this.thumbnail_url = doc.selectFirst("div > img[style]")
-                ?.attr("src")
-                ?.replace("/w500/", "/original/")
+            this.thumbnail_url = img?.replace("/w500/", "/w1280/")
             this.background_url = doc.selectFirst("meta[property='og:image']")?.attr("content")
             this.description = doc.selectFirst("p[class*='leading-relaxed']")?.text()
 
@@ -169,27 +160,31 @@ class SoloLatino : Source() {
     override fun episodeListParse(response: Response): List<SEpisode> {
         val doc = response.asJsoup()
         val url = response.request.url.toString()
+        val movieDate = doc.selectFirst("div.detail-field:contains(Estreno) > dd")?.text()
+        val previewIm = doc.selectFirst("meta[property='og:image']")?.attr("content")
         val episodes = mutableListOf<SEpisode>()
 
         // Si Es Serie/Dorama/Anime se Extraen los Episodios.
         var epNumCount = 0
-        doc.select("a[class*='ep-item']").mapNotNull {
-            val epUrl = it.attr("href")
-            val epName = it.selectFirst("p[class*=text-white]")?.text()
-            val epTemp = epUrl.substringAfter("temporada-").substringBefore("/")
-            val epNumb = epUrl.substringAfter("episodio-")
-            val epTime = it.selectFirst("p[style='color:#404060']")?.text()
+        doc.select("a[class*='ep-item']").mapNotNull { epEle ->
+            val epHref = epEle.attr("href")
+            val epName = epEle.selectFirst("p[class*=text-white]")?.text()
+            val epTemp = epHref.substringAfter("temporada-").substringBefore("/")
+            val epNumb = epHref.substringAfter("episodio-")
+            val epTime = epEle.selectFirst("p[style='color:#404060']")?.text()
             epNumCount++
             episodes.add(
                 SEpisode.create().apply {
-                    this.url = epUrl
+                    this.url = epHref
                     this.name = "S$epTemp:E$epNumb - $epName"
                     this.date_upload = getDateLong("dd/MM/yyyy", epTime)
                     this.episode_number = epNumCount.toFloat()
                     // this.fillermark = false
                     // this.scanlator = ""
-                    this.summary = it.selectFirst("p[class*=line-clamp-2]")?.text()
-                    this.preview_url = it.selectFirst("img")?.attr("src")
+                    this.summary = epEle.selectFirst("p[class*=line-clamp-2]")?.text()
+                    this.preview_url = epEle.selectFirst("img")?.attr("src")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: previewIm
                 },
             )
         }
@@ -197,8 +192,6 @@ class SoloLatino : Source() {
         return if (episodes.isNotEmpty()) {
             episodes.reversed()
         } else {
-            val movieDate = doc.selectFirst("div.detail-field:contains(Estreno) > dd")?.text()
-            val previewIm = doc.selectFirst("meta[property='og:image']")?.attr("content")
             listOf(
                 SEpisode.create().apply {
                     this.url = url
@@ -220,11 +213,11 @@ class SoloLatino : Source() {
     override fun videoListParse(response: Response): List<Video> {
         val episodeUrl = response.request.url.toString()
         // Primero, obtenemos las cookies necesarias para autenticarnos con Sanctum
-        client.newCall(GET("$baseUrl/sanctum/csrf-cookie", headers)).execute().close()
+        // client.newCall(GET("$baseUrl/sanctum/csrf-cookie", headers)).execute().close()
 
         // Luego, hacemos la solicitud a la página del contenido para obtener los enlaces de los servidores
-        val episodeResponse = client.newCall(GET(episodeUrl, headers)).execute()
-        val document = episodeResponse.asJsoup()
+        // val episodeResponse = client.newCall(GET(episodeUrl, headers)).execute()
+        val document = response.asJsoup()
         val listHref = mutableListOf<String>()
         document.select("button[data-player-token], button[data-server-btn]").mapNotNull { it ->
             val playerToken = it.attr("data-player-token")
@@ -316,10 +309,16 @@ class SoloLatino : Source() {
     private fun getExtraInfo(node: Element, year: String): String {
         var output = "\n\n – Año: $year"
         arrayOf(
-            "Temporadas", "Estreno", "Último aire", "Duración", "País",
-            "Idioma Original", "Título original", "Clasificación", "Certificación",
+            "Temporadas", "Título original", "Idioma Original", "Estreno",
+            "Último aire", "Duración", "País", "Clasificación", "Certificación",
         ).forEach {
-            val dataFound = node.selectFirst("div.detail-field:contains($it) > dd")?.text()
+            var dataFound = node.selectFirst("div.detail-field:contains($it) > dd")?.text()
+            if (it == "Título original") {
+                val altName = node.selectFirst("script:containsData(alternateName)")?.data()
+                    ?.substringAfter("\"alternateName\":[\"")
+                    ?.substringBefore("\",\"")
+                dataFound = dataFound ?: altName
+            }
             if (dataFound != null) {
                 output += if (it == "Temporadas") {
                     " • $dataFound temp."
@@ -335,7 +334,7 @@ class SoloLatino : Source() {
         val dateFormat = SimpleDateFormat(format, locale)
         return try {
             dateFormat.parse(date)?.time ?: 0L
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             0L
         }
     }
@@ -343,12 +342,10 @@ class SoloLatino : Source() {
     // Extractores.
     private val voeExtractor by lazy { VoeExtractor(client, headers) }
     private val uqloadExtractor by lazy { UqloadExtractor(client) }
-    private val filemoonExtractor by lazy { FilemoonExtractor(client) }
     private val mp4UploadExtractor by lazy { Mp4uploadExtractor(client) }
     private val universalExtractor by lazy { UniversalExtractor(client) }
-    private val wolfStreamExtractor by lazy { WolfstreamExtractor(client) }
+    private val byseExtractor by lazy { ByseExtractor(client) }
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
-    private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
     private fun serverVideoResolver(urls: List<String>, prefix: String = ""): List<Video> = urls.parallelFlatMapBlocking { url ->
         runCatching {
             Log.d("SoloLatino", "Resolviendo URL: $url")
@@ -356,10 +353,9 @@ class SoloLatino : Source() {
                 "voe" in url -> voeExtractor.videosFromUrl(url, "$prefix ")
                 "uqload" in url -> uqloadExtractor.videosFromUrl(url, prefix)
                 "mp4upload" in url -> mp4UploadExtractor.videosFromUrl(url, headers, "$prefix ")
-                "wolfstream" in url -> wolfStreamExtractor.videosFromUrl(url, "$prefix ")
-                "filemoon" in url -> filemoonExtractor.videosFromUrl(url, "$prefix Filemoon:")
+                "byse" in url -> byseExtractor.videosFromUrl(url, videoNameGen = { "$prefix FileMoon:$it" })
                 "vidhide" in url -> vidHideExtractor.videosFromUrl(url, videoNameGen = { "$prefix VidHide:$it" })
-                "streamwish" in url -> streamWishExtractor.videosFromUrl(url, "$prefix StreamWish")
+                "hglink" in url -> universalExtractor.videosFromUrl(url, headers, videoNameGen = { "$prefix StreamWish:$it" })
                 else -> universalExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
             }
         }.getOrDefault(emptyList()) // Manejo seguro de fallos
