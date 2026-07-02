@@ -25,9 +25,11 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
     private val mainServersRegex = """main\s*=\s*\[(.*?)]""".toRegex(RegexOption.DOT_MATCHES_ALL)
     private val rulesServersRegex = """rules\s*=\s*\[(.*?)]""".toRegex(RegexOption.DOT_MATCHES_ALL)
 
-    fun videosFromUrl(url: String, prefix: String) = videosFromUrl(url) { "$prefix - $it" }
-
-    fun videosFromUrl(url: String, videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" }): List<Video> {
+    fun videosFromUrl(url: String, prefix: String = "StreamWish") = videosFromUrl(url) { "$prefix - $it" }
+    fun videosFromUrl(
+        url: String,
+        videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" },
+    ): List<Video> {
         val embedUrl = getEmbedUrl(url).toHttpUrl()
         var doc = client.newCall(GET(embedUrl, headers)).execute().asJsoup()
 
@@ -40,9 +42,7 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
                 ?: return emptyList()
 
             val dmcaServers = extractServerList(dmcaServersRegex, deobfuscatedScript)
-
             val mainServers = extractServerList(mainServersRegex, deobfuscatedScript)
-
             val rulesServers = extractServerList(rulesServersRegex, deobfuscatedScript)
 
             val destination = if (embedUrl.host in rulesServers) {
@@ -55,7 +55,6 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
                 .host(destination)
                 .build()
                 .toString()
-
             doc = client.newCall(GET(getEmbedUrl(redirectedUrl), headers)).execute().asJsoup()
         }
 
@@ -67,13 +66,9 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
                     script
                 }
             }
-        val masterUrl = scriptBody?.let {
-            m3u8Regex.find(it)?.value
-        }
+        val masterUrl = scriptBody?.let { m3u8Regex.find(it)?.value }
             ?: return emptyList()
-
         val subtitleList = extractSubtitles(scriptBody)
-
         return playlistUtils.extractFromHls(
             playlistUrl = masterUrl,
             referer = "https://${url.toHttpUrl().host}/",
