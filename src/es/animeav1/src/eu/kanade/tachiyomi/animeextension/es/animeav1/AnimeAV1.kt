@@ -4,7 +4,6 @@ import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
-import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -20,8 +19,15 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.Source
 import keiyoushi.utils.parallelCatchingFlatMapBlocking
+import keiyoushi.utils.parseAs
 import okhttp3.Request
 import okhttp3.Response
+import java.text.SimpleDateFormat
+import java.util.Locale
+import kotlin.collections.component1
+import kotlin.collections.component2
+import kotlin.collections.plus
+import kotlin.collections.set
 
 class AnimeAV1 : Source() {
     override val name = "AnimeAV1"
@@ -63,7 +69,7 @@ class AnimeAV1 : Source() {
                 this.url = baseUrl + url
                 this.title = it.selectFirst("h3, div.text-subs.uppercase")!!.text()
                 this.thumbnail_url = it.selectFirst("img")?.attr("abs:src")
-                this.fetch_type = FetchType.Episodes
+                // this.fetch_type = FetchType.Episodes
             }
         }
         return AnimesPage(animeList, nextPage)
@@ -75,24 +81,36 @@ class AnimeAV1 : Source() {
         val document = response.asJsoup()
         val scriptContent = document.selectFirst("script:containsData(__sveltekit)")?.data() ?: ""
         // Recolectamos la Información de la Película/Anime/OVA
-        val mediaInfo = getMediaInfo(scriptContent) ?: return SAnime.create()
+        val animeJson = """(?s)data:(\{media:.*\}),uses""".getFirstMatch(scriptContent)
+            ?.parseAs<AnimeAV1Data>()?.media ?: return SAnime.create()
+        val aniZipRes = aniZipData(animeJson.malId)
         return SAnime.create().apply {
-            this.title = mediaInfo.title ?: document.select("h1[class*=text-lead]").text()
+            this.title = animeJson.title ?: aniZipRes.titles?.get("x-jat")!!
             // this.artist
             // this.author
-            this.description = mediaInfo.synopsis
-            this.genre = mediaInfo.genre?.joinToString(", ")
-            this.status = mediaInfo.status
-            this.thumbnail_url = "https://cdn.animeav1.com/covers/${mediaInfo.mediaID}.jpg"
-            this.background_url = "https://cdn.animeav1.com/backdrops/${mediaInfo.mediaID}.jpg"
+            this.description = buildString {
+                append("${animeJson.synopsis ?: "Sin descripción disponible."}\n")
+                // Extra info extraction for description
+                animeJson.startDate?.also { append("\n – Se Estreno: $it") }
+                animeJson.endDate?.also { append("\n – Finalizo En: $it") }
+                document.selectFirst("span:contains(Temporada)")?.text().also { append("\n – $it") }
+                animeJson.category?.also { append("\n – Tipo de Anime: ${it.name}") }
+                animeJson.malId?.also { append("\n – MyAnimeList ID: $it") }
+                animeJson.score?.also { append("\n – Calificacion: $it") }
+            }
+            this.genre = animeJson.genres?.joinToString(", ") { it.name!! }
+            this.status = when (animeJson.status) {
+                0 -> SAnime.COMPLETED
+                1, 2 -> SAnime.ONGOING
+                else -> SAnime.UNKNOWN
+            }
+            this.thumbnail_url = aniZipRes.images?.find { it?.coverType == "Poster" }?.url
+                ?: "https://cdn.animeav1.com/covers/${animeJson.id}.jpg"
+            this.background_url = aniZipRes.images?.find { it?.coverType == "Fanart" }?.url
+                ?: "https://cdn.animeav1.com/backdrops/${animeJson.id}.jpg"
             // this.update_strategy
-            this.fetch_type = FetchType.Episodes
+            // this.fetch_type = FetchType.Episodes
             // this.season_number
-
-            // Extra Info.
-            val extraMeta = document.select("div:contains(Temporada)").text().split("•")
-            val extraInfo = getExtraInfo(mediaInfo, extraMeta)
-            this.description = (description + extraInfo).trim()
         }
     }
 
@@ -102,25 +120,30 @@ class AnimeAV1 : Source() {
         val document = response.asJsoup()
         val scriptContent = document.selectFirst("script:containsData(__sveltekit)")?.data() ?: ""
         // Recolectamos la Información de la Película/Anime/OVA
-        val mediaInfo = getMediaInfo(scriptContent)
+        val animeJson = """(?s)data:(\{media:.*\}),uses""".getFirstMatch(scriptContent)
+            ?.parseAs<AnimeAV1Data>()?.media ?: return emptyList()
+        val aniZipRes = aniZipData(animeJson.malId)
         val episodes = mutableListOf<SEpisode>()
-        val epStart = mediaInfo?.startEpisode ?: 1
-        val epCount = mediaInfo?.episodesCount ?: 1
+        val epStart = animeJson.episodes?.firstOrNull()?.number ?: 1
+        val epCount = animeJson.episodesCount ?: 1
 
         // Se Extraen los Episodios de MediaInfo.
-        if (mediaInfo != null) {
+        if (animeJson.episodes != null) {
             for (i in epStart..epCount) {
-                val epUrl = "$baseUrl/media/${mediaInfo.slug}/$i"
+                val aniDb = aniZipRes.episodes?.get("$i")
+                val index = if (epStart == 0) i + 1 else i
+                val title = aniDb?.title?.get("x-jat") ?: aniDb?.title?.get("en")
                 episodes.add(
                     SEpisode.create().apply {
-                        setUrlWithoutDomain(epUrl)
-                        this.name = "Episode ${if (epStart == 0) i + 1 else i}"
-                        this.date_upload = 0
+                        this.url = "$baseUrl/media/${animeJson.slug}/$i"
+                        this.name = "E${index} - $title }"
+                        this.date_upload = getDateLong("yyyy-MM-dd", aniDb?.airDate)
                         this.episode_number = i.toFloat()
                         // this.fillermark = false
                         // this.scanlator = ""
                         // this.summary = ""
-                        this.preview_url = "https://cdn.animeav1.com/screenshots/${mediaInfo.mediaID}/$i.jpg"
+                        this.preview_url = aniDb?.image
+                            ?: "https://cdn.animeav1.com/screenshots/${animeJson.id}/$i.jpg"
                     },
                 )
             }
@@ -133,11 +156,23 @@ class AnimeAV1 : Source() {
     override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
-        val script = document.selectFirst("script:containsData(__sveltekit)")?.data() ?: ""
+        val scriptContent = document.selectFirst("script:containsData(__sveltekit)")?.data() ?: ""
 
-        val mediaData = getMediaInfo(script) ?: return emptyList()
+        val animeData = """(?s)data:(\{media:.*\}),uses""".getFirstMatch(scriptContent)
+            ?.parseAs<AnimeAV1Data>() ?: return emptyList()
         val videoList = mutableListOf<Video>()
-        mediaData.embeds?.map { (lang, embdes) ->
+        val allEmbeds = mutableMapOf<String, List<EmbedInfo>>()
+
+        // 1. Extraer urls de 'embeds' y 'downloads' dinámicamente
+        listOfNotNull(animeData.embeds, animeData.downloads).forEach { container ->
+            container.forEach { (category, items) ->
+                val currentList = allEmbeds[category] ?: emptyList()
+                val newItems = items.mapNotNull { it.toEmbedInfo() }
+                // Filtrar URL duplicadas usando distinctBy
+                allEmbeds[category] = (currentList + newItems).distinctBy { it.url }
+            }
+        }
+        allEmbeds.map { (lang, embdes) ->
             videoList.addAll(
                 embdes.parallelCatchingFlatMapBlocking {
                     serverVideoResolver(it.url, lang, it.server)
@@ -162,15 +197,6 @@ class AnimeAV1 : Source() {
         }.also(screen::addPreference)
 
         ListPreference(screen.context).apply {
-            key = "preferred_quality"
-            title = "Calidad Preferida"
-            entries = QUALITIES
-            entryValues = QUALITIES
-            setDefaultValue(QUALITY_DEFAULT)
-            summary = "%s"
-        }.also(screen::addPreference)
-
-        ListPreference(screen.context).apply {
             key = "preferred_server"
             title = "Servidor Preferido"
             entries = SERVERS
@@ -178,24 +204,23 @@ class AnimeAV1 : Source() {
             setDefaultValue(SERVER_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
+            key = "preferred_quality"
+            title = "Calidad Preferida"
+            entries = QUALITIES
+            entryValues = QUALITIES
+            setDefaultValue(QUALITY_DEFAULT)
+            summary = "%s"
+        }.also(screen::addPreference)
     }
 
-    //
     // ========================= Funciones Auxiliares =======================
-    private fun getExtraInfo(meta: MediaDateJSON, extra: List<String>): String {
-        var output = "\n\n – Fecha de inicio: ${meta.startDate}"
-        output += "\n – ${extra[2].trim()}"
-        output += "\n – Tipo de Anime: ${meta.type}"
-        output += "\n – MyAnimeList ID: ${meta.malId}"
-        output += "\n – Calificacion: ${meta.score}"
-        return output
-    }
-
     // Extractores.
     private val voeExtractor by lazy { VoeExtractor(client, headers) }
     private val lpayerExtractor by lazy { LpayerExtractor(client) }
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
-    private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client) }
+    private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client, headers) }
     private val universalExtractor by lazy { UniversalExtractor(client) }
     private val pixelDrainExtractor by lazy { PixelDrainExtractor(client) }
     private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
@@ -211,18 +236,18 @@ class AnimeAV1 : Source() {
 
                 pzilla.any { it in source } -> {
                     val m3u8 = url.replace("play/", "m3u8/")
-                    listOf(Video(videoTitle = "$prefix HLS", videoUrl = m3u8))
+                    listOf(Video(videoTitle = "$prefix HLS:1080p", videoUrl = m3u8))
                 }
 
-                vidhide.any { it in source } -> vidHideExtractor.videosFromUrl(url, videoNameGen = { "$prefix VidHide:$it" })
+                vidhide.any { it in source } -> vidHideExtractor.videosFromUrl(url) { "$prefix VidHide:$it" }
 
                 "voe" in source -> voeExtractor.videosFromUrl(url, "$prefix ")
 
                 "upnshare" in source -> lpayerExtractor.videosFromUrl(url, prefix = "$prefix UPNShare:")
 
-                "mp4upload" in source -> mp4uploadExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
+                "mp4upload" in source -> mp4uploadExtractor.videosFromUrl(url) { "$prefix MP4Upload:$it" }
 
-                "streamwish" in source -> streamWishExtractor.videosFromUrl(url, videoNameGen = { "$prefix StreamWish:$it" })
+                "streamwish" in source -> streamWishExtractor.videosFromUrl(url) { "$prefix StreamWish:$it" }
 
                 "yourupload" in source -> yourUploadExtractor.videoFromUrl(url, headers = headers, prefix = "$prefix ")
 
@@ -239,8 +264,8 @@ class AnimeAV1 : Source() {
         return sortedWith(
             compareBy(
                 { it.videoTitle.contains(lang, true) },
-                { it.videoTitle.contains(quality) },
                 { it.videoTitle.contains(server, true) },
+                { it.videoTitle.contains(quality) },
                 { Regex("""(\d+)p""").find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 },
             ),
         ).reversed()
@@ -252,6 +277,45 @@ class AnimeAV1 : Source() {
         path.startsWith("//") -> "https:$path"
         path.startsWith("/") -> baseUrl + path
         else -> path
+    }
+
+    // Obtiene Meta datos de AniZip
+    private fun aniZipData(id: Int?): AniZipResponse {
+        if (id == null) return AniZipResponse()
+        return try {
+            val response = client.newCall(GET("https://api.ani.zip/mappings?mal_id=$id")).execute()
+            response.body.string().parseAs<AniZipResponse>()
+        } catch (_: Exception) {
+            AniZipResponse()
+        }
+    }
+
+    // Limpia un string de JS para convertirlo en JSON válido.
+    private fun cleanJsToJson(js: String): String = js
+        .replace("void 0", "null")
+        .replace(Regex("""(?<=[{,])\s*(\w+)\s*:""")) {
+            "\"${it.groupValues[1]}\":"
+        }.trim()
+
+    // Obtener DateTime en Long
+    private fun getDateLong(format: String, date: String?, locale: Locale = Locale.getDefault()): Long {
+        if (date == null) return 0L
+        val dateFormat = SimpleDateFormat(format, locale)
+        return try {
+            dateFormat.parse(date)?.time ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    // Función para obtener el primer match de un regex
+    private fun String.getFirstMatch(input: String): String? {
+        val foundMatch = Regex(this).find(input)?.groupValues?.get(1)
+        return if (foundMatch !== null) {
+            cleanJsToJson(foundMatch)
+        } else {
+            null
+        }
     }
 
     companion object {
