@@ -7,8 +7,17 @@ import eu.kanade.tachiyomi.util.asJsoup
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 
-class Mp4uploadExtractor(private val client: OkHttpClient) {
-    fun videosFromUrl(url: String, headers: Headers, prefix: String = "", suffix: String = ""): List<Video> {
+class Mp4uploadExtractor(private val client: OkHttpClient, private val headers: Headers) {
+    fun videosFromUrl(
+        url: String,
+        prefix: String = "",
+        suffix: String = "",
+    ): List<Video> = videosFromUrl(url) { "${prefix}Mp4Upload - $it$suffix" }
+
+    fun videosFromUrl(
+        url: String,
+        videoNameGen: (String) -> String,
+    ): List<Video> {
         val newHeaders = headers.newBuilder()
             .set("referer", REFERER)
             .build()
@@ -24,7 +33,7 @@ class Mp4uploadExtractor(private val client: OkHttpClient) {
             .substringAfter("src:").substringAfter('"').substringBefore('"')
 
         val resolution = QUALITY_REGEX.find(script)?.groupValues?.let { "${it[1]}p" } ?: "Unknown resolution"
-        val quality = "${prefix}Mp4Upload - $resolution$suffix"
+        val quality = videoNameGen(resolution)
 
         return listOf(Video(videoUrl = videoUrl, videoTitle = quality, headers = newHeaders))
     }

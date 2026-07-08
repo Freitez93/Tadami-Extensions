@@ -75,6 +75,6 @@ class VidHideExtractor(private val client: OkHttpClient, private val headers: He
 
     companion object {
         // Capture both `https://domain/master.m3u8?query` and `/domain/master.m3u8?query`
-        private val sourceRegex = Regex(""""((?:https?:/)?/[^"]*m3u8[^"]*)"""")
+        private val sourceRegex = Regex("""[:=]\s*\"([^\"\s]+(\.m3u8|master\.txt)[^\"\s]*)""")
     }
 }
