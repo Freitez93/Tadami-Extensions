@@ -24,10 +24,6 @@ import okhttp3.Request
 import okhttp3.Response
 import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlin.collections.component1
-import kotlin.collections.component2
-import kotlin.collections.plus
-import kotlin.collections.set
 
 class AnimeAV1 : Source() {
     override val name = "AnimeAV1"

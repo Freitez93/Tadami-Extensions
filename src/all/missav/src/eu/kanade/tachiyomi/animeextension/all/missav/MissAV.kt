@@ -28,8 +28,8 @@ import java.util.Locale
 
 class MissAV : Source() {
     override val name = "MissAV"
-    override var baseUrl: String by preferences.delegate(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)
     override val lang = "all"
+    override var baseUrl: String by preferences.delegate(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)
     override val supportsLatest = true
 
     // Variables de inicializacion.
@@ -160,7 +160,7 @@ class MissAV : Source() {
         return playlistExtractor.extractFromHls(
             playlistUrl = masterPlaylist,
             referer = "https://missav.live/",
-            videoNameGen = { "MissAV:$it" },
+            videoNameGen = { quality -> "MissAV:$quality" },
         ).sort()
     }
 
