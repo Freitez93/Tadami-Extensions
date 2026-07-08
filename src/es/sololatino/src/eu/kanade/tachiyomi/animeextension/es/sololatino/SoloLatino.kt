@@ -35,7 +35,6 @@ class SoloLatino : Source() {
     override val baseUrl = "https://sololatino.net"
     override val lang = "es"
     override val supportsLatest = true
-    override val id: Long = 2168637495373172929L
 
     // ============================== Popular ===============================
     override fun popularAnimeRequest(page: Int): Request = GET("$baseUrl/buscar?tipo=todo&orden=popularidad&page=$page")
@@ -48,60 +47,54 @@ class SoloLatino : Source() {
     // ============================== Search ================================
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val params = SoloLatinoFilters.getSearchParameters(filters)
-        var finalQuery = "$baseUrl/"
-        // Si es una Plataforma los demas Filtros se ignoran
-        if (params.platform.isNotEmpty()) {
-            finalQuery = finalQuery.toHttpUrlOrNull()!!.newBuilder()
-                .addPathSegment("red")
-                .addPathSegment(params.platform)
-                .addQueryParameter("año", params.year)
-                .addQueryParameter("nota", params.note)
-                .addQueryParameter("orden", params.sort)
-                .addQueryParameter("page", page.toString())
-                .build().toString()
-        }
-        // Si es un Tipo.
-        else if (query.isNotEmpty()) {
-            finalQuery = finalQuery.toHttpUrlOrNull()!!.newBuilder()
-                .addPathSegment("buscar")
-                .addQueryParameter("q", query)
-                .addQueryParameter("genero", params.genre)
-                .addQueryParameter("año", params.year)
-                .addQueryParameter("nota", params.note)
-                .addQueryParameter("orden", params.sort)
-                .addQueryParameter("page", page.toString())
-                .build().toString()
-        }
-        // Por defecto
-        else {
-            finalQuery = finalQuery.toHttpUrlOrNull()!!.newBuilder()
-                .let {
-                    if (params.type.isNotEmpty()) {
-                        it.addPathSegment(params.type)
-                    } else {
-                        it.addPathSegment("buscar")
-                    }
+        val url = baseUrl.toHttpUrlOrNull()!!.newBuilder().apply {
+            when {
+                // Caso 1: Búsqueda por texto (query)
+                // Ejemplo: /buscar?q=the&genero=accion&año=2020&nota=7&orden=az
+                query.isNotEmpty() -> {
+                    addPathSegment("buscar")
+                    addQueryParameter("q", query)
+                    addQueryParameter("genero", params.genre)
+                    addQueryParameter("orden", params.sort)
                 }
-                .addQueryParameter("genero", params.genre)
-                .addQueryParameter("año", params.year)
-                .addQueryParameter("nota", params.note)
-                .let {
+
+                // Caso 2: Filtrado por Plataforma (ignora tipo y género)
+                // Ejemplo: /red/netflix?año=0&nota=8&orden=popularidad
+                params.platform.isNotEmpty() -> {
+                    addPathSegment("red")
+                    addPathSegment(params.platform)
+                    addQueryParameter("orden", params.sort)
+                }
+
+                // Caso 3: Filtrado por Tipo o Catálogo general
+                // Ejemplo: /series?genero=&año=0&nota=0&sort=popular
+                else -> {
                     if (params.type.isNotEmpty()) {
-                        val sort = when (params.sort) {
+                        addPathSegment(params.type)
+                        // El sitio cambia el nombre del parámetro 'orden' a 'sort'
+                        // y sus valores cuando se filtra por un tipo específico.
+                        val sortValue = when (params.sort) {
                             "fecha" -> "updated"
                             "popularidad" -> "popular"
                             "nota" -> "rating"
                             else -> params.sort
                         }
-                        it.addQueryParameter("sort", sort)
+                        addQueryParameter("sort", sortValue)
                     } else {
-                        it.addQueryParameter("orden", params.sort)
+                        addPathSegment("buscar")
+                        addQueryParameter("orden", params.sort)
                     }
+                    addQueryParameter("genero", params.genre)
                 }
-                .addQueryParameter("page", page.toString())
-                .build().toString()
+            }
+
+            // Parámetros comunes que se aplican a todas las peticiones
+            addQueryParameter("año", params.year)
+            addQueryParameter("nota", params.note)
+            addQueryParameter("page", page.toString())
         }
-        return GET(finalQuery, headers)
+
+        return GET(url.build().toString(), headers)
     }
     override fun searchAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
@@ -113,7 +106,7 @@ class SoloLatino : Source() {
                 this.title = it.selectFirst("img")?.attr("alt") ?: "Not Title"
                 this.thumbnail_url = it.selectFirst("img")?.attr("src")
                     ?: "https://sololatino.net/images/no-poster.jpg"
-                this.fetch_type = FetchType.Episodes
+                // this.fetch_type = FetchType.Episodes
             }
         }
         return AnimesPage(animeList, nextPage)
@@ -124,20 +117,30 @@ class SoloLatino : Source() {
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
         val img = doc.selectFirst("div > img[style]")?.attr("src")
+        val synopsis = doc.selectFirst("p[class*='leading-relaxed']")?.text()
         return SAnime.create().apply {
             this.title = doc.selectFirst("div > img[style]")!!.attr("alt")
             this.thumbnail_url = img?.replace("/w500/", "/w1280/")
             this.background_url = doc.selectFirst("meta[property='og:image']")?.attr("content")
-            this.description = doc.selectFirst("p[class*='leading-relaxed']")?.text()
+            this.description = buildString {
+                append("${synopsis ?: "Sin descripción disponible."}\n")
+                // Extra info extraction for description
+                doc.getInfo("Estreno|Año")?.also { append("\n – Estreno: $it") }
+                doc.getInfo("Temporadas")?.also { append(" • $it temp.") }
+                doc.getInfo("Último aire")?.also { append("\n – Último Episodio: $it") }
+                doc.getInfo("Título original").also { append("\n – Título Original: ${it ?: title }") }
+                doc.getInfo("Idioma original")?.also { append("\n – Idioma Original: $it") }
+                doc.getInfo("Duración")?.also { append("\n – Duración: $it") }
+                doc.getInfo("País")?.also { append("\n – País: $it") }
+                doc.getInfo("Clasificación|Certificación")?.also { append("\n – Clasificación: $it") }
+            }
 
             // Metadata parsing
             this.genre = doc.select("div.flex > a[href*='/genero/']")
-                .joinToString(" ,") {
-                    it.text()
-                }
+                .joinToString(" ,") { it.text() }
             // Strict author parsing to avoid metadata
             this.author = doc.selectFirst("a[href*='/persona/']:matches(Creador|Director) > img")
-                ?.attr("alt")
+                ?.joinToString(", ") { it.attr("alt") }
             // Status is generally Completed for movies
             val statusText = doc.selectFirst("div.items-center > span.rounded")?.text() ?: "Ended"
             this.status = when (statusText) {
@@ -145,13 +148,7 @@ class SoloLatino : Source() {
                 "Ended" -> SAnime.COMPLETED
                 else -> SAnime.UNKNOWN
             }
-            // Extra info extraction for description
-            val year = doc.selectFirst("title")?.text()
-                ?.substringAfter("(")
-                ?.substringBefore(")")
-            val extraInfo = getExtraInfo(doc, year ?: "Unknow")
-            this.description = (description + extraInfo).trim()
-            this.fetch_type = FetchType.Episodes
+            // this.fetch_type = FetchType.Episodes
         }
     }
 
@@ -212,27 +209,17 @@ class SoloLatino : Source() {
     override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
     override fun videoListParse(response: Response): List<Video> {
         val episodeUrl = response.request.url.toString()
-        // Primero, obtenemos las cookies necesarias para autenticarnos con Sanctum
-        // client.newCall(GET("$baseUrl/sanctum/csrf-cookie", headers)).execute().close()
-
-        // Luego, hacemos la solicitud a la página del contenido para obtener los enlaces de los servidores
-        // val episodeResponse = client.newCall(GET(episodeUrl, headers)).execute()
         val document = response.asJsoup()
-        val listHref = mutableListOf<String>()
+        val listOfHref = mutableListOf<String>()
         document.select("button[data-player-token], button[data-server-btn]").mapNotNull { it ->
             val playerToken = it.attr("data-player-token")
             // Si el botón tiene un token, hacemos una solicitud a la API.
             if (playerToken.isNotBlank()) {
                 // Construir la URL de la API usando el playerToken y headers
-                val cookies = client.cookieJar.loadForRequest(baseUrl.toHttpUrlOrNull()!!)
-                val xsrfToken = cookies.find { it.name == "XSRF-TOKEN" }?.value?.let {
-                    java.net.URLDecoder.decode(it, "UTF-8")
-                } ?: ""
-
                 val apiHeader = headers.newBuilder()
                     .add("Accept", "application/json")
                     .add("Content-Type", "application/json")
-                    .add("X-XSRF-TOKEN", xsrfToken)
+                    .add("X-XSRF-TOKEN", getXsrfToken())
                     .add("X-Requested-With", "XMLHttpRequest")
                     .add("Referer", episodeUrl)
                     .build()
@@ -240,11 +227,15 @@ class SoloLatino : Source() {
                 // Realizar la solicitud a la API para obtener la URL del servidor
                 try {
                     val body = "{\"t\":\"$playerToken\"}".toRequestBody("application/json".toMediaType())
-                    client.newCall(POST("$baseUrl/api/player-url", apiHeader, body)).execute().use { apiResponse ->
+                    client.newCall(POST(
+                        "$baseUrl/api/player-url",
+                        apiHeader,
+                        body
+                    )).execute().use { apiResponse ->
                         val jsonObject = JSONObject(apiResponse.body.string())
                         val videoUrl = jsonObject.optString("url")
                         if (videoUrl.isNotBlank()) {
-                            listHref.add(videoUrl)
+                            listOfHref.add(videoUrl)
                         }
                     }
                 } catch (e: Exception) {
@@ -252,17 +243,17 @@ class SoloLatino : Source() {
                 }
             }
         }
-        return listHref.parallelFlatMapBlocking { url ->
+        return listOfHref.parallelFlatMapBlocking { url ->
             when {
                 url.contains("embed69.org") -> {
                     Embed69(client).getLinks(url).flatMap { (language, links) ->
-                        serverVideoResolver(links, " $language")
+                        serverVideoResolver(links, language)
                     }
                 }
 
                 url.contains("re.sololatino.net") -> {
                     XupaLace(client).getLinks(url).flatMap { (language, links) ->
-                        serverVideoResolver(links, " $language")
+                        serverVideoResolver(links, language)
                     }
                 }
 
@@ -286,15 +277,6 @@ class SoloLatino : Source() {
         }.also(screen::addPreference)
 
         ListPreference(screen.context).apply {
-            key = "preferred_quality"
-            title = "Calidad Preferida"
-            entries = QUALITIES
-            entryValues = QUALITIES
-            setDefaultValue(QUALITY_DEFAULT)
-            summary = "%s"
-        }.also(screen::addPreference)
-
-        ListPreference(screen.context).apply {
             key = "preferred_server"
             title = "Servidor Preferido"
             entries = SERVERS
@@ -302,32 +284,25 @@ class SoloLatino : Source() {
             setDefaultValue(SERVER_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
+            key = "preferred_quality"
+            title = "Calidad Preferida"
+            entries = QUALITIES
+            entryValues = QUALITIES
+            setDefaultValue(QUALITY_DEFAULT)
+            summary = "%s"
+        }.also(screen::addPreference)
     }
 
     //
     // ========================= Funciones Auxiliares =======================
-    private fun getExtraInfo(node: Element, year: String): String {
-        var output = "\n\n – Año: $year"
-        arrayOf(
-            "Temporadas", "Título original", "Idioma Original", "Estreno",
-            "Último aire", "Duración", "País", "Clasificación", "Certificación",
-        ).forEach {
-            var dataFound = node.selectFirst("div.detail-field:contains($it) > dd")?.text()
-            if (it == "Título original") {
-                val altName = node.selectFirst("script:containsData(alternateName)")?.data()
-                    ?.substringAfter("\"alternateName\":[\"")
-                    ?.substringBefore("\",\"")
-                dataFound = dataFound ?: altName
-            }
-            if (dataFound != null) {
-                output += if (it == "Temporadas") {
-                    " • $dataFound temp."
-                } else {
-                    "\n – $it: $dataFound"
-                }
-            }
-        }
-        return output
+    // Extrae informacion extra en la pagina.
+    private fun Element.getInfo(key: String): String? {
+        val dataFound = this.selectFirst("div.detail-field:matches($key) > dd")
+            ?.text()
+            ?.takeIf(String::isNotBlank)
+        return dataFound
     }
     private fun getDateLong(format: String, date: String?, locale: Locale = Locale.getDefault()): Long {
         if (date == null) return 0L
@@ -341,21 +316,30 @@ class SoloLatino : Source() {
 
     // Extractores.
     private val voeExtractor by lazy { VoeExtractor(client, headers) }
-    private val uqloadExtractor by lazy { UqloadExtractor(client) }
-    private val mp4UploadExtractor by lazy { Mp4uploadExtractor(client) }
-    private val universalExtractor by lazy { UniversalExtractor(client) }
     private val byseExtractor by lazy { ByseExtractor(client) }
+    private val uqloadExtractor by lazy { UqloadExtractor(client) }
+    private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client, headers) }
+    private val universalExtractor by lazy { UniversalExtractor(client) }
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
     private fun serverVideoResolver(urls: List<String>, prefix: String = ""): List<Video> = urls.parallelFlatMapBlocking { url ->
         runCatching {
-            Log.d("SoloLatino", "Resolviendo URL: $url")
+            Log.d("SoloLatino", "Resolviendo URL: $prefix -> $url")
             when {
                 "voe" in url -> voeExtractor.videosFromUrl(url, "$prefix ")
+
                 "uqload" in url -> uqloadExtractor.videosFromUrl(url, prefix)
-                "mp4upload" in url -> mp4UploadExtractor.videosFromUrl(url, headers, "$prefix ")
-                "byse" in url -> byseExtractor.videosFromUrl(url, videoNameGen = { "$prefix FileMoon:$it" })
-                "vidhide" in url -> vidHideExtractor.videosFromUrl(url, videoNameGen = { "$prefix VidHide:$it" })
-                "hglink" in url -> universalExtractor.videosFromUrl(url, headers, videoNameGen = { "$prefix StreamWish:$it" })
+
+                "mp4upload" in url -> mp4uploadExtractor.videosFromUrl(url) { "$prefix MP4Upload:$it" }
+
+                "byse" in url -> byseExtractor.videosFromUrl(url) { "$prefix FileMoon:$it" }
+
+                "minochinos" in url -> {
+                    val fixUrl = url.replace("minochinos.com", "callistanise.com")
+                    vidHideExtractor.videosFromUrl(fixUrl) { "$prefix VidHide:$it" }
+                }
+
+                "hglink" in url -> universalExtractor.videosFromUrl(url, headers) { "$prefix StreamWish:$it" }
+
                 else -> universalExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
             }
         }.getOrDefault(emptyList()) // Manejo seguro de fallos
@@ -364,13 +348,14 @@ class SoloLatino : Source() {
     // Ordenar los videos
     private fun List<Video>.sort(): List<Video> {
         val quality = preferences.getString("preferred_quality", QUALITY_DEFAULT)!!
-        val lang = preferences.getString("preferred_lang", LANGNGUAGE_DEFAULT)!!
         val server = preferences.getString("preferred_server", SERVER_DEFAULT)!!
+        val lang = preferences.getString("preferred_lang", LANGNGUAGE_DEFAULT)!!
         return sortedWith(
             compareBy(
                 { it.videoTitle.contains(lang, true) },
-                { it.videoTitle.contains(quality) },
                 { it.videoTitle.contains(server, true) },
+                { it.videoTitle.contains(quality) },
+                { Regex("""(\d+)p""").find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 },
             ),
         ).reversed()
     }
@@ -383,12 +368,22 @@ class SoloLatino : Source() {
         else -> path
     }
 
+    private fun getXsrfToken(): String = synchronized(this) {
+        // Primero, obtenemos las cookies necesarias para autenticarnos con Sanctum
+        client.newCall(GET("$baseUrl/sanctum/csrf-cookie", headers)).execute().close()
+        client.cookieJar.loadForRequest(baseUrl.toHttpUrlOrNull()!!).find {
+            it.name == "XSRF-TOKEN"
+        }?.value?.let {
+            java.net.URLDecoder.decode(it, "UTF-8")
+        } ?: ""
+    }
+
     companion object {
         // Elementos divididos apropiadamente en lugar de un string aglomerado
         private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
         private const val QUALITY_DEFAULT = "720p"
 
-        private val SERVERS = arrayOf("StreamWish", "Uqload", "Hglink", "Mp4Upload", "Voe", "VidHide")
+        private val SERVERS = arrayOf("StreamWish", "Mp4Upload", "FileMoon", "Uqload", "VidHide", "Voe")
         private const val SERVER_DEFAULT = "VidHide"
 
         private val LANGUAGES_VALUES = arrayOf("ESP", "LAT", "SUB")

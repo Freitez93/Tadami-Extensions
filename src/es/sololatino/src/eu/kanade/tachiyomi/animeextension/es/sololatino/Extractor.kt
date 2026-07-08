@@ -59,12 +59,10 @@ class Embed69(private val client: OkHttpClient) {
                         server.link?.let { encrypted ->
                             val decryptedUrl = decryptAESLocal(encrypted, aesKey)
                             if (!decryptedUrl.isNullOrBlank()) {
-                                val fixedUrl = fixHostsLinks(decryptedUrl)
-                                Log.d("Embed69", "$decryptedUrl -> $fixedUrl")
                                 val language = lang.videoLanguage ?: "Unknown"
                                 allLinksByLanguage.getOrPut(language) {
                                     mutableListOf()
-                                }.add(fixedUrl)
+                                }.add(decryptedUrl)
                             }
                         }
                     }
@@ -198,7 +196,7 @@ class XupaLace(private val client: OkHttpClient) {
                 if (langLinks.isNotEmpty()) {
                     langLinks.forEach { link ->
                         allLinksByLanguage.getOrPut(language) { mutableListOf() }
-                            .add(fixHostsLinks(link))
+                            .add(link)
                     }
                 }
             }
@@ -231,26 +229,3 @@ class XupaLace(private val client: OkHttpClient) {
 
 // ================================ Funciones Auxiliares ================================
 fun getFirstMatch(pattern: String, input: String): String? = pattern.toRegex().find(input)?.groupValues?.get(1)
-
-private fun fixHostsLinks(url: String): String {
-    val replacements = mapOf(
-        "mivalyo.com" to "vidhidepro.com",
-        "dinisglows.com" to "vidhidepro.com",
-        "dhtpre.com" to "vidhidepro.com",
-        "minochinos.com" to "vidhidepro.com",
-        // "filemoon.link" to "filemoon.sx",
-        // "bysedikamoum.com" to "filemoon.sx",
-        "sblona.com" to "watchsb.com",
-        "lulu.st" to "lulustream.com",
-        "uqload.io" to "uqload.com",
-        "do7go.com" to "dood.la",
-    )
-    var result = url
-    for ((from, to) in replacements) {
-        if (result.contains(from)) {
-            result = result.replaceFirst(from, to)
-            break
-        }
-    }
-    return result
-}

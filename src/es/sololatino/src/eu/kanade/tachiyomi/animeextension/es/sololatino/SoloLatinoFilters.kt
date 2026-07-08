@@ -3,7 +3,15 @@ package eu.kanade.tachiyomi.animeextension.es.sololatino
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 
+/**
+ * Filtros para el catálogo de SoloLatino.
+ * Proporciona una interfaz estructurada para manejar los filtros de búsqueda del sitio.
+ */
 object SoloLatinoFilters {
+
+    /**
+     * Filtro de selección simple que asocia un nombre visible con un valor para la URL.
+     */
     open class UriPartFilter(
         displayName: String,
         private val vals: Array<Pair<String, String>>,
@@ -11,19 +19,17 @@ object SoloLatinoFilters {
         fun toUriPart() = vals[state].second
     }
 
-    private inline fun <reified R> AnimeFilterList.getFirst(): R = first { it is R } as R
+    // --- Filtros Individuales ---
+    class PlatformFilter : UriPartFilter("Plataformas", Data.PLATFORMS)
+    class TypeFilter : UriPartFilter("Tipo", Data.TYPES)
+    class GenreFilter : UriPartFilter("Géneros", Data.GENRES)
+    class YearFilter : UriPartFilter("Año", Data.YEARS)
+    class NoteFilter : UriPartFilter("Nota", Data.NOTE)
+    class SortFilter : UriPartFilter("Ordenar", Data.SORT)
 
-    private inline fun <reified R> AnimeFilterList.asUriPart(): String = getFirst<R>().let {
-        (it as UriPartFilter).toUriPart()
-    }
-
-    class PlatformFilter : UriPartFilter("Plataformas", AnimesOnlineNinjaData.PLATFORMS)
-    class TypeFilter : UriPartFilter("Tipo", AnimesOnlineNinjaData.TYPES)
-    class GenreFilter : UriPartFilter("Generos", AnimesOnlineNinjaData.GENRES)
-    class YearFilter : UriPartFilter("Año", AnimesOnlineNinjaData.YEARS)
-    class NoteFilter : UriPartFilter("Nota", AnimesOnlineNinjaData.NOTE)
-    class SortFilter : UriPartFilter("Ordenar", AnimesOnlineNinjaData.SORT)
-
+    /**
+     * Grupo que organiza filtros secundarios bajo una sola categoría.
+     */
     class OtherOptionsGroup :
         AnimeFilter.Group<UriPartFilter>(
             "Otros filtros",
@@ -35,118 +41,138 @@ object SoloLatinoFilters {
             ),
         )
 
-    private inline fun <reified R> AnimeFilter.Group<UriPartFilter>.getItemUri(): String = state.first { it is R }.toUriPart()
-
+    /**
+     * Estructura de la lista de filtros que se muestra en la aplicación.
+     */
     val FILTER_LIST get() = AnimeFilterList(
         PlatformFilter(),
         TypeFilter(),
         AnimeFilter.Separator(),
-        AnimeFilter.Header("Estos filtros afectan a la busqueda por texto"),
+        AnimeFilter.Header("Estos filtros afectan a la búsqueda por texto"),
         OtherOptionsGroup(),
     )
 
+    /**
+     * Clase de datos para transportar los valores seleccionados en los filtros.
+     */
     data class FilterSearchParams(
         val platform: String = "",
         val type: String = "",
         val genre: String = "",
         val year: String = "0",
         val note: String = "0",
-        val sort: String = "",
+        val sort: String = "popularidad",
     )
 
+    /**
+     * Extrae y procesa los filtros seleccionados para convertirlos en parámetros de búsqueda.
+     */
     internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
         if (filters.isEmpty()) return FilterSearchParams()
+
         val others = filters.getFirst<OtherOptionsGroup>()
+
         return FilterSearchParams(
-            filters.asUriPart<PlatformFilter>(),
-            filters.asUriPart<TypeFilter>(),
-            others.getItemUri<GenreFilter>(),
-            others.getItemUri<YearFilter>(),
-            others.getItemUri<NoteFilter>(),
-            others.getItemUri<SortFilter>(),
+            platform = filters.asUriPart<PlatformFilter>(),
+            type = filters.asUriPart<TypeFilter>(),
+            genre = others.getItemUri<GenreFilter>(),
+            year = others.getItemUri<YearFilter>(),
+            note = others.getItemUri<NoteFilter>(),
+            sort = others.getItemUri<SortFilter>(),
         )
     }
 
-    private object AnimesOnlineNinjaData {
-        val EVERY = Pair("<Seleccionar>", "")
-        val EVERYZERO = Pair("<Seleccionar>", "0")
+    // --- Funciones de Extensión para facilitar la extracción ---
+    private inline fun <reified R> AnimeFilterList.getFirst(): R = first { it is R } as R
+
+    private inline fun <reified R> AnimeFilterList.asUriPart(): String = (getFirst<R>() as UriPartFilter).toUriPart()
+
+    private inline fun <reified R> AnimeFilter.Group<UriPartFilter>.getItemUri(): String = state.first { it is R }.toUriPart()
+
+    /**
+     * Datos estáticos que alimentan las opciones de los filtros.
+     */
+    private object Data {
+        private val ANY = "<Seleccionar>" to ""
+        private val ANY_ZERO = "<Seleccionar>" to "0"
 
         val PLATFORMS = arrayOf(
-            EVERY,
-            Pair("Netflix", "netflix"),
-            Pair("Amazon Prime Video", "amazon-prime-video"),
-            Pair("Tokyo Mx", "tokyo-mx"),
-            Pair("Disney+", "disney"),
-            Pair("Apple TV+", "apple-tv"),
-            Pair("Tv Tokyo", "tv-tokyo"),
-            Pair("At-X", "at-x"),
-            Pair("Hulu", "hulu"),
-            Pair("HBO Max", "hbo-max"),
-            Pair("HBO", "hbo"),
-            Pair("Bs11", "bs11"),
-            Pair("Nbc", "nbc"),
+            ANY,
+            "Netflix" to "netflix",
+            "Amazon Prime Video" to "amazon-prime-video",
+            "Tokyo Mx" to "tokyo-mx",
+            "Disney+" to "disney",
+            "Apple TV+" to "apple-tv",
+            "Tv Tokyo" to "tv-tokyo",
+            "At-X" to "at-x",
+            "Hulu" to "hulu",
+            "HBO Max" to "hbo-max",
+            "HBO" to "hbo",
+            "Bs11" to "bs11",
+            "Nbc" to "nbc",
         )
 
         val TYPES = arrayOf(
-            Pair("Tipo: Todo", ""),
-            Pair("Películas", "peliculas"),
-            Pair("Series", "series"),
-            Pair("Animes", "animes"),
-            Pair("Doramas", "doramas"),
+            ANY,
+            "Películas" to "peliculas",
+            "Series" to "series",
+            "Animes" to "animes",
+            "Doramas" to "doramas",
         )
 
         val GENRES = arrayOf(
-            Pair("Género: Todos", ""),
-            Pair("Acción", "accion"),
-            Pair("Action & Adventure", "action-adventure"),
-            Pair("Animación", "animacion"),
-            Pair("Anime", "anime"),
-            Pair("Aventura", "aventura"),
-            Pair("Bélica", "belica"),
-            Pair("Ciencia Ficción", "ciencia-ficcion"),
-            Pair("Comedia", "comedia"),
-            Pair("Crimen", "crimen"),
-            Pair("Documental", "documental"),
-            Pair("Drama", "drama"),
-            Pair("Familia", "familia"),
-            Pair("Fantasía", "fantasia"),
-            Pair("Historia", "historia"),
-            Pair("Kids", "kids"),
-            Pair("Misterio", "misterio"),
-            Pair("Música", "musica"),
-            Pair("News", "news"),
-            Pair("Película De Tv", "pelicula-de-tv"),
-            Pair("Reality", "reality"),
-            Pair("Romance", "romance"),
-            Pair("Sci-Fi & Fantasy", "sci-fi-fantasy"),
-            Pair("Soap", "soap"),
-            Pair("Suspense", "suspense"),
-            Pair("Talk", "talk"),
-            Pair("Terror", "terror"),
-            Pair("War & Politics", "war-politics"),
-            Pair("Western", "western"),
+            ANY,
+            "Acción" to "accion",
+            "Action & Adventure" to "action-adventure",
+            "Animación" to "animacion",
+            "Anime" to "anime",
+            "Aventura" to "aventura",
+            "Bélica" to "belica",
+            "Ciencia Ficción" to "ciencia-ficcion",
+            "Comedia" to "comedia",
+            "Crimen" to "crimen",
+            "Documental" to "documental",
+            "Drama" to "drama",
+            "Familia" to "familia",
+            "Fantasía" to "fantasia",
+            "Historia" to "historia",
+            "Kids" to "kids",
+            "Misterio" to "misterio",
+            "Música" to "musica",
+            "News" to "news",
+            "Película De Tv" to "pelicula-de-tv",
+            "Reality" to "reality",
+            "Romance" to "romance",
+            "Sci-Fi & Fantasy" to "sci-fi-fantasy",
+            "Soap" to "soap",
+            "Suspense" to "suspense",
+            "Talk" to "talk",
+            "Terror" to "terror",
+            "War & Politics" to "war-politics",
+            "Western" to "western",
         )
 
-        val YEARS = arrayOf(EVERYZERO) + (2026 downTo 1979).map {
-            Pair(it.toString(), it.toString())
+        val YEARS = arrayOf(ANY_ZERO) + (2026 downTo 1979).map {
+            it.toString() to it.toString()
         }.toTypedArray()
 
         val NOTE = arrayOf(
-            Pair("Nota: Todas", "0"),
-            Pair("9+ Obra maestra", "9"),
-            Pair("8+ Excelente", "8"),
-            Pair("7+ Muy buena", "7"),
-            Pair("6+ Buena", "6"),
-            Pair("5+ Regular", "5"),
+            ANY_ZERO,
+            "9+ Obra maestra" to "9",
+            "8+ Excelente" to "8",
+            "7+ Muy buena" to "7",
+            "6+ Buena" to "6",
+            "5+ Regular" to "5",
         )
 
         val SORT = arrayOf(
-            Pair("Más populares", "popularidad"),
-            Pair("Más recientes", "fecha"),
-            Pair("Mejor nota", "nota"),
-            Pair("Año: nuevo a viejo", "año-desc"),
-            Pair("Año: viejo a nuevo", "año-asc"),
-            Pair("A-Z", "az"),
+            "Más populares" to "popularidad",
+            "Más recientes" to "fecha",
+            "Mejor nota" to "nota",
+            "Año: nuevo a viejo" to "año-desc",
+            "Año: viejo a nuevo" to "año-asc",
+            "A-Z" to "az",
+            "Z-A" to "za",
         )
     }
 }
