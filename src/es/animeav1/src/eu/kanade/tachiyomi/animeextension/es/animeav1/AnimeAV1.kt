@@ -136,7 +136,7 @@ class AnimeAV1 : Source() {
                 episodes.add(
                     SEpisode.create().apply {
                         this.url = "$baseUrl/media/${animeJson.slug}/$i"
-                        this.name = "E${index} - $title }"
+                        this.name = "E$index - $title"
                         this.date_upload = getDateLong("yyyy-MM-dd", aniDb?.airDate)
                         this.episode_number = i.toFloat()
                         // this.fillermark = false

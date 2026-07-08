@@ -227,11 +227,13 @@ class SoloLatino : Source() {
                 // Realizar la solicitud a la API para obtener la URL del servidor
                 try {
                     val body = "{\"t\":\"$playerToken\"}".toRequestBody("application/json".toMediaType())
-                    client.newCall(POST(
-                        "$baseUrl/api/player-url",
-                        apiHeader,
-                        body
-                    )).execute().use { apiResponse ->
+                    client.newCall(
+                        POST(
+                            "$baseUrl/api/player-url",
+                            apiHeader,
+                            body,
+                        ),
+                    ).execute().use { apiResponse ->
                         val jsonObject = JSONObject(apiResponse.body.string())
                         val videoUrl = jsonObject.optString("url")
                         if (videoUrl.isNotBlank()) {
