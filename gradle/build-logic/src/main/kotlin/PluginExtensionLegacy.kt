@@ -66,7 +66,6 @@ class PluginExtensionLegacy : Plugin<Project> {
                 assertWithoutFlag(extClass.startsWith(".")) { "'extClass' must start with '.'" }
                 manifestPlaceholders += mapOf(
                     "appName" to "Aniyomi: $extName",
-                    "author" to "Freitez93",
                     "extClass" to extClass,
                     "nsfw" to if (isNsfw) 1 else 0,
                 )
