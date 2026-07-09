@@ -120,29 +120,28 @@ class AnimeAV1 : Source() {
             ?.parseAs<AnimeAV1Data>()?.media ?: return emptyList()
         val aniZipRes = aniZipData(animeJson.malId)
         val episodes = mutableListOf<SEpisode>()
-        val epStart = animeJson.episodes?.firstOrNull()?.number ?: 1
-        val epCount = animeJson.episodesCount ?: 1
 
         // Se Extraen los Episodios de MediaInfo.
-        if (animeJson.episodes != null) {
-            for (i in epStart..epCount) {
-                val aniDb = aniZipRes.episodes?.get("$i")
-                val index = if (epStart == 0) i + 1 else i
-                val title = aniDb?.title?.get("x-jat") ?: aniDb?.title?.get("en")
-                episodes.add(
-                    SEpisode.create().apply {
-                        this.url = "$baseUrl/media/${animeJson.slug}/$i"
-                        this.name = "E$index - $title"
-                        this.date_upload = getDateLong("yyyy-MM-dd", aniDb?.airDate)
-                        this.episode_number = i.toFloat()
-                        // this.fillermark = false
-                        // this.scanlator = ""
-                        // this.summary = ""
-                        this.preview_url = aniDb?.image
-                            ?: "https://cdn.animeav1.com/screenshots/${animeJson.id}/$i.jpg"
-                    },
-                )
-            }
+        var lastDate = ""
+        for (episode in animeJson.episodes!!) {
+            val epNum = episode.number ?: continue
+            val epStr = if (epNum % 1 == 0f) epNum.toInt().toString() else epNum.toString()
+            val aniDb = aniZipRes.episodes?.get(epStr)
+            val title = aniDb?.title?.get("x-jat") ?: aniDb?.title?.get("en") ?: "Sin Titulo"
+            lastDate = aniDb?.airDate ?: lastDate
+            episodes.add(
+                SEpisode.create().apply {
+                    this.url = "$baseUrl/media/${animeJson.slug}/$epStr"
+                    this.name = "E$epStr - $title"
+                    this.date_upload = getDateLong("yyyy-MM-dd", lastDate)
+                    this.episode_number = epNum
+                    this.fillermark = aniDb?.episodeNumber == null
+                    // this.scanlator = ""
+                    // this.summary = ""
+                    this.preview_url = aniDb?.image
+                        ?: "https://cdn.animeav1.com/screenshots/${animeJson.id}/$epNum.jpg"
+                },
+            )
         }
         // Retornamos la lista de Episodios
         return episodes.reversed()

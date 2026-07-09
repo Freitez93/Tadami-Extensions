@@ -132,7 +132,7 @@ data class AnimeAV1Category(
 @Serializable
 data class AnimeAV1EpisodeSimple(
     val id: Int? = null,
-    val number: Int? = null,
+    val number: Float? = null,
 )
 
 @Serializable
@@ -140,7 +140,7 @@ data class AnimeAV1Episode(
     val id: Int? = null,
     val mediaId: Int? = null,
     val title: String? = null,
-    val number: Int? = null,
+    val number: Float? = null,
     val season: Int? = null,
     val filler: Boolean? = null,
     val publishedAt: String? = null,
