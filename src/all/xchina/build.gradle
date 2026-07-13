@@ -1,0 +1,13 @@
+ext {
+    extName = 'xChina'
+    extClass = '.XChina'
+    extVersionCode = 1
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"
+
+dependencies {
+    implementation(project(':lib:playlist-utils'))
+    implementation(project(':lib:javcoverfetcher'))
+}
