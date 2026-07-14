@@ -3,20 +3,22 @@ package eu.kanade.tachiyomi.animeextension.es.sololatino
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
+import aniyomi.lib.byseextractor.ByseExtractor
+import aniyomi.lib.mp4uploadextractor.Mp4uploadExtractor
+import aniyomi.lib.streamwishextractor.StreamWishExtractor
+import aniyomi.lib.universalextractor.UniversalExtractor
+import aniyomi.lib.uqloadextractor.UqloadExtractor
+import aniyomi.lib.vidhideextractor.VidHideExtractor
+import aniyomi.lib.voeextractor.VoeExtractor
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
-import eu.kanade.tachiyomi.animesource.model.FetchType
+import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.lib.byseextractor.ByseExtractor
-import eu.kanade.tachiyomi.lib.mp4uploadextractor.Mp4uploadExtractor
-import eu.kanade.tachiyomi.lib.universalextractor.UniversalExtractor
-import eu.kanade.tachiyomi.lib.uqloadextractor.UqloadExtractor
-import eu.kanade.tachiyomi.lib.vidhideextractor.VidHideExtractor
-import eu.kanade.tachiyomi.lib.voeextractor.VoeExtractor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.Source
 import keiyoushi.utils.parallelFlatMapBlocking
@@ -205,85 +207,83 @@ class SoloLatino : Source() {
         }
     }
 
-    // =============================== Video ================================
-    override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
-    override fun videoListParse(response: Response): List<Video> {
-        val episodeUrl = response.request.url.toString()
+    // ============================ Hoster ========================================
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
+        val response = client.newCall(GET(episode.url, headers)).await()
         val document = response.asJsoup()
-        val listOfHref = mutableListOf<String>()
-        document.select("button[data-player-token], button[data-server-btn]").mapNotNull { it ->
-            val playerToken = it.attr("data-player-token")
-            // Si el botón tiene un token, hacemos una solicitud a la API.
-            if (playerToken.isNotBlank()) {
-                // Construir la URL de la API usando el playerToken y headers
-                val apiHeader = headers.newBuilder()
-                    .add("Accept", "application/json")
-                    .add("Content-Type", "application/json")
-                    .add("X-XSRF-TOKEN", getXsrfToken())
-                    .add("X-Requested-With", "XMLHttpRequest")
-                    .add("Referer", episodeUrl)
-                    .build()
-
-                // Realizar la solicitud a la API para obtener la URL del servidor
-                try {
-                    val body = "{\"t\":\"$playerToken\"}".toRequestBody("application/json".toMediaType())
-                    client.newCall(
-                        POST(
-                            "$baseUrl/api/player-url",
-                            apiHeader,
-                            body,
-                        ),
-                    ).execute().use { apiResponse ->
-                        val jsonObject = JSONObject(apiResponse.body.string())
-                        val videoUrl = jsonObject.optString("url")
-                        if (videoUrl.isNotBlank()) {
-                            listOfHref.add(videoUrl)
+        return document.apiPlayerToken("button[data-player-token]")
+            .parallelFlatMapBlocking { url ->
+                when {
+                    url.contains("embed69.org") || url.contains("xupalace.org") -> {
+                        Embed69(client).getLinks(url).flatMap { (language, links) ->
+                            links.map {
+                                val hostName = getHosterName(it)
+                                Hoster(
+                                    hosterName = "$hostName $language",
+                                    hosterUrl = it,
+                                    internalData = hostName,
+                                    // videoList = hosterVideoResolver(it)
+                                )
+                            }
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e("SoloLatino", "Error al obtener la URL del servidor desde la API: ${e.message}")
-                }
-            }
-        }
-        return listOfHref.parallelFlatMapBlocking { url ->
-            when {
-                url.contains("embed69.org") -> {
-                    Embed69(client).getLinks(url).flatMap { (language, links) ->
-                        serverVideoResolver(links, language)
-                    }
-                }
 
-                url.contains("re.sololatino.net") -> {
-                    XupaLace(client).getLinks(url).flatMap { (language, links) ->
-                        serverVideoResolver(links, language)
-                    }
+                    else -> emptyList()
                 }
-
-                else -> emptyList()
-            }
-        }.sort()
+            }.sortHosters()
     }
+
+    override suspend fun getVideoList(hoster: Hoster): List<Video> = hosterVideoResolver(hoster.hosterUrl, hoster.internalData)
 
     // ============================== Filters ===============================
     override fun getFilterList() = SoloLatinoFilters.FILTER_LIST
 
+    // ================================ Sorts ===============================
+
+    /**
+     * Standardized hoster sorting based on language tags and user preferences.
+     */
+    override fun List<Hoster>.sortHosters(): List<Hoster> {
+        val prefLang = preferences.getString("preferred_lang", PREF_LANG_DEFAULT)!!
+        val prefHost = preferences.getString("preferred_host", PREF_HOST_DEFAULT)!!
+        return sortedWith(
+            compareByDescending<Hoster> {
+                it.hosterName.contains(prefHost, true)
+            }.thenByDescending {
+                it.hosterName.contains(prefLang, true)
+            },
+        )
+    }
+
+    /**
+     * Standardized video sorting based on user preferences.
+     */
+    override fun List<Video>.sortVideos(): List<Video> {
+        val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
+        return sortedWith(
+            compareByDescending<Video> {
+                it.videoTitle.contains(prefQlty, true)
+            },
+        )
+    }
+
     // ============================= Preferences ============================
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        ListPreference(screen.context).apply {
+            key = "preferred_host"
+            title = "Servidor Preferido"
+            entries = SERVERS
+            entryValues = SERVERS
+            setDefaultValue(PREF_HOST_DEFAULT)
+            summary = "%s"
+        }.also(screen::addPreference)
+
         ListPreference(screen.context).apply {
             key = "preferred_lang"
             title = "Idioma Preferido"
             entries = LANGUAGES_DISPLAY
             entryValues = LANGUAGES_VALUES
-            setDefaultValue(LANGNGUAGE_DEFAULT)
-            summary = "%s"
-        }.also(screen::addPreference)
-
-        ListPreference(screen.context).apply {
-            key = "preferred_server"
-            title = "Servidor Preferido"
-            entries = SERVERS
-            entryValues = SERVERS
-            setDefaultValue(SERVER_DEFAULT)
+            setDefaultValue(PREF_LANG_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
 
@@ -292,7 +292,7 @@ class SoloLatino : Source() {
             title = "Calidad Preferida"
             entries = QUALITIES
             entryValues = QUALITIES
-            setDefaultValue(QUALITY_DEFAULT)
+            setDefaultValue(PREF_QLTY_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
     }
@@ -306,6 +306,8 @@ class SoloLatino : Source() {
             ?.takeIf(String::isNotBlank)
         return dataFound
     }
+
+    // Transforma una fecha en formato String a la fecha en formato Long
     private fun getDateLong(format: String, date: String?, locale: Locale = Locale.getDefault()): Long {
         if (date == null) return 0L
         val dateFormat = SimpleDateFormat(format, locale)
@@ -323,44 +325,35 @@ class SoloLatino : Source() {
     private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client, headers) }
     private val universalExtractor by lazy { UniversalExtractor(client) }
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
-    private fun serverVideoResolver(urls: List<String>, prefix: String = ""): List<Video> = urls.parallelFlatMapBlocking { url ->
-        runCatching {
-            Log.d("SoloLatino", "Resolviendo URL: $prefix -> $url")
-            when {
-                "voe" in url -> voeExtractor.videosFromUrl(url, "$prefix ")
+    private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
+    private suspend fun hosterVideoResolver(
+        url: String,
+        hosterName: String = "Default",
+    ): List<Video> = runCatching {
+        Log.d("SoloLatino", "Resolviendo URL: $hosterName -> $url")
+        when (hosterName) {
+            "Voe" -> voeExtractor.videosFromUrl(url, "")
 
-                "uqload" in url -> uqloadExtractor.videosFromUrl(url, prefix)
+            "Uqload" -> uqloadExtractor.videosFromUrl(url, "")
 
-                "mp4upload" in url -> mp4uploadExtractor.videosFromUrl(url) { "$prefix MP4Upload:$it" }
+            "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(url, { "$hosterName:$it" })
 
-                "byse" in url -> byseExtractor.videosFromUrl(url) { "$prefix FileMoon:$it" }
+            "FileMoon" -> byseExtractor.videosFromUrl(url, { "$hosterName:$it" })
 
-                "minochinos" in url -> {
-                    val fixUrl = url.replace("minochinos.com", "callistanise.com")
-                    vidHideExtractor.videosFromUrl(fixUrl) { "$prefix VidHide:$it" }
+            "VidHide" -> vidHideExtractor.videosFromUrl(url, { "$hosterName:$it" })
+
+            "StreamWish" -> {
+                var firstCall = streamWishExtractor.videosFromUrl(url, { "$hosterName:$it" })
+                if (firstCall.isEmpty()) {
+                    universalExtractor.videosFromUrl(url, headers, videoNameGen = { "$hosterName:$it" })
+                } else {
+                    firstCall
                 }
-
-                "hglink" in url -> universalExtractor.videosFromUrl(url, headers) { "$prefix StreamWish:$it" }
-
-                else -> universalExtractor.videosFromUrl(url, headers, prefix = "$prefix ")
             }
-        }.getOrDefault(emptyList()) // Manejo seguro de fallos
-    }
 
-    // Ordenar los videos
-    private fun List<Video>.sort(): List<Video> {
-        val quality = preferences.getString("preferred_quality", QUALITY_DEFAULT)!!
-        val server = preferences.getString("preferred_server", SERVER_DEFAULT)!!
-        val lang = preferences.getString("preferred_lang", LANGNGUAGE_DEFAULT)!!
-        return sortedWith(
-            compareBy(
-                { it.videoTitle.contains(lang, true) },
-                { it.videoTitle.contains(server, true) },
-                { it.videoTitle.contains(quality) },
-                { Regex("""(\d+)p""").find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 },
-            ),
-        ).reversed()
-    }
+            else -> universalExtractor.videosFromUrl(url, headers, prefix = "")
+        }
+    }.getOrDefault(emptyList()).sortVideos() // Manejo seguro de fallos
 
     // Obtenert una URL absoluta usando baseUrl.
     private fun absUrl(path: String): String = when {
@@ -370,26 +363,71 @@ class SoloLatino : Source() {
         else -> path
     }
 
-    private fun getXsrfToken(): String = synchronized(this) {
+    // Obtiene el hoster de la url
+    private fun getHosterName(url: String): String = when {
+        "voe" in url -> "Voe"
+        "uqload" in url -> "Uqload"
+        "mp4upload" in url -> "Mp4Upload"
+        "byse" in url -> "FileMoon"
+        "hglink" in url -> "StreamWish"
+        "minochinos" in url -> "VidHide"
+        else -> "Default"
+    }
+
+    private fun getXsrfToken(): String {
         // Primero, obtenemos las cookies necesarias para autenticarnos con Sanctum
         client.newCall(GET("$baseUrl/sanctum/csrf-cookie", headers)).execute().close()
-        client.cookieJar.loadForRequest(baseUrl.toHttpUrlOrNull()!!).find {
+        return client.cookieJar.loadForRequest(baseUrl.toHttpUrlOrNull()!!).find {
             it.name == "XSRF-TOKEN"
         }?.value?.let {
             java.net.URLDecoder.decode(it, "UTF-8")
         } ?: ""
     }
 
+    private fun Element.apiPlayerToken(css: String): List<String> {
+        val episodeUrl = this.select("meta[property='og:url']").attr("content")
+        val xsrfToken = getXsrfToken()
+        return this.select(css).mapNotNull { it ->
+            val playerToken = it.attr("data-player-token")
+            // Si el botón tiene un token, hacemos una solicitud a la API.
+            if (playerToken.isNotBlank()) {
+                // Construir la URL de la API usando el playerToken y headers
+                val apiHeader = headers.newBuilder()
+                    .add("Accept", "application/json")
+                    .add("Content-Type", "application/json")
+                    .add("X-XSRF-TOKEN", xsrfToken)
+                    .add("X-Requested-With", "XMLHttpRequest")
+                    .add("Referer", episodeUrl)
+                    .build()
+
+                // Realizar la solicitud a la API para obtener la URL del servidor
+                try {
+                    val body = "{\"t\":\"$playerToken\"}".toRequestBody("application/json".toMediaType())
+                    client.newCall(
+                        POST("$baseUrl/api/player-url", apiHeader, body),
+                    ).execute().use { apiResponse ->
+                        JSONObject(apiResponse.body.string()).optString("url")
+                    }
+                } catch (e: Exception) {
+                    Log.e("SoloLatino", "Error al obtener la URL del servidor desde la API: ${e.message}")
+                    null
+                }
+            } else {
+                null
+            }
+        }
+    }
+
     companion object {
         // Elementos divididos apropiadamente en lugar de un string aglomerado
         private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
-        private const val QUALITY_DEFAULT = "720p"
+        private const val PREF_QLTY_DEFAULT = "720p"
 
         private val SERVERS = arrayOf("StreamWish", "Mp4Upload", "FileMoon", "Uqload", "VidHide", "Voe")
-        private const val SERVER_DEFAULT = "VidHide"
+        private const val PREF_HOST_DEFAULT = "VidHide"
 
         private val LANGUAGES_VALUES = arrayOf("ESP", "LAT", "SUB")
-        private val LANGUAGES_DISPLAY = arrayOf("Español", "Español Latino", "Subtitulado")
-        private const val LANGNGUAGE_DEFAULT = "LAT"
+        private val LANGUAGES_DISPLAY = arrayOf("🇪🇸 Español", "🇲🇽 Latino", "🇪🇺 Subtitulado")
+        private const val PREF_LANG_DEFAULT = "LAT"
     }
 }
