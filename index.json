@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Aniyomi: MissAV",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.missav",
+    "apk": "aniyomi-all.missav-v14.26.apk",
+    "lang": "all",
+    "code": 26,
+    "version": "14.26",
+    "nsfw": 1,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "MissAV",
+        "lang": "all",
+        "id": "168969881246615628",
+        "baseUrl": "https://missav.live",
+        "versionId": 1
+      }
+    ]
+  },
+  {
+    "name": "Aniyomi: xChina",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.xchina",
+    "apk": "aniyomi-all.xchina-v14.2.apk",
+    "lang": "all",
+    "code": 2,
+    "version": "14.2",
+    "nsfw": 1,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "xChina",
+        "lang": "all",
+        "id": "1667869221284845200",
+        "baseUrl": "🇨🇳 Simplified Chinese",
+        "versionId": 1
+      }
+    ]
+  },
+  {
+    "name": "Aniyomi: AnimeAV1",
+    "pkg": "eu.kanade.tachiyomi.animeextension.es.animeav1",
+    "apk": "aniyomi-es.animeav1-v14.8.apk",
+    "lang": "es",
+    "code": 8,
+    "version": "14.8",
+    "nsfw": 0,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "AnimeAV1",
+        "lang": "es",
+        "id": "1563723619853520901",
+        "baseUrl": "https://animeav1.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
+    "name": "Aniyomi: SoloLatino",
+    "pkg": "eu.kanade.tachiyomi.animeextension.es.sololatino",
+    "apk": "aniyomi-es.sololatino-v14.10.apk",
+    "lang": "es",
+    "code": 10,
+    "version": "14.10",
+    "nsfw": 0,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "SoloLatino",
+        "lang": "es",
+        "id": "2714169179278506077",
+        "baseUrl": "https://sololatino.net",
+        "versionId": 1
+      }
+    ]
+  }
+]
