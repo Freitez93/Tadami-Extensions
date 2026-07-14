@@ -2,16 +2,16 @@ package eu.kanade.tachiyomi.animeextension.all.missav
 
 import android.util.Log
 import androidx.preference.PreferenceScreen
+import aniyomi.lib.javcoverfetcher.JavCoverFetcher
+import aniyomi.lib.javcoverfetcher.JavCoverFetcher.fetchHDCovers
+import aniyomi.lib.playlistutils.PlaylistUtils
+import aniyomi.lib.unpacker.Unpacker
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.lib.javcoverfetcher.JavCoverFetcher
-import eu.kanade.tachiyomi.lib.javcoverfetcher.JavCoverFetcher.fetchHDCovers
-import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
-import eu.kanade.tachiyomi.lib.unpacker.Unpacker
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.LazyMutable
@@ -161,11 +161,29 @@ class MissAV : Source() {
             playlistUrl = masterPlaylist,
             referer = "https://missav.live/",
             videoNameGen = { quality -> "MissAV:$quality" },
-        ).sort()
+        ).sortVideos()
     }
 
     // ============================== Filters ===============================
     override fun getFilterList() = getFilters()
+
+    // ================================ Sorts ===============================
+
+    /**
+     * Standardized video sorting based on user preferences.
+     */
+    override fun List<Video>.sortVideos(): List<Video> {
+        val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
+        return this.sortedWith(
+            compareByDescending<Video> {
+                // Prioriza los videos cuyo título contiene la calidad preferida
+                it.videoTitle.contains(prefQlty, ignoreCase = true)
+            }.thenByDescending {
+                // Luego ordena por resolución (ej: 1080p > 720p)
+                it.resolution
+            },
+        )
+    }
 
     // ============================= Preferences ============================
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -184,11 +202,11 @@ class MissAV : Source() {
         }
 
         screen.addListPreference(
-            key = PREF_QUALITY,
-            title = PREF_QUALITY_TITLE,
-            entries = PREF_QUALITY_ENTRIES,
-            entryValues = PREF_QUALITY_VALUES,
-            default = PREF_QUALITY_DEFAULT,
+            key = PREF_QLTY_KEY,
+            title = PREF_QLTY_TITLE,
+            entries = PREF_QLTY_ENTRIES,
+            entryValues = PREF_QLTY_VALUES,
+            default = PREF_QLTY_DEFAULT,
             summary = "%s",
         )
 
@@ -196,14 +214,6 @@ class MissAV : Source() {
     }
 
     // ========================= Funciones Auxiliares =======================
-    // Ordenar los videos
-    private fun List<Video>.sort(): List<Video> {
-        val quality = preferences.getString(PREF_QUALITY, PREF_QUALITY_DEFAULT)!!
-        return sortedWith(
-            compareBy { it.videoTitle.contains(quality) },
-        ).reversed()
-    }
-
     // Obtiene una informacion del AV.
     private fun Element.getInfo(key: String): String? {
         val dataFound = select("span:containsOwn($key) ~ :is(time, span, a)")
@@ -271,10 +281,10 @@ class MissAV : Source() {
         private val PREF_DOMAIN_DEFAULT = PREF_DOMAIN_ENTRIES.first()
 
         // Variables de Calidad
-        private const val PREF_QUALITY = "preferred_quality"
-        private const val PREF_QUALITY_TITLE = "Preferred quality"
-        private val PREF_QUALITY_ENTRIES = listOf("720p", "480p", "360p")
-        private val PREF_QUALITY_VALUES = listOf("720", "480", "360")
-        private val PREF_QUALITY_DEFAULT = PREF_QUALITY_VALUES.first()
+        private const val PREF_QLTY_KEY = "preferred_quality"
+        private const val PREF_QLTY_TITLE = "Preferred quality"
+        private val PREF_QLTY_VALUES = listOf("720", "480", "360")
+        private val PREF_QLTY_ENTRIES = listOf("720p", "480p", "360p")
+        private val PREF_QLTY_DEFAULT = PREF_QLTY_VALUES.first()
     }
 }
