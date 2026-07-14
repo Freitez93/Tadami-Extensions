@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.lib.pixeldrainextractor
+package aniyomi.lib.pixeldrainextractor
 
 import eu.kanade.tachiyomi.animesource.model.Video
 import okhttp3.OkHttpClient
