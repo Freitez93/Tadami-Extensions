@@ -31,9 +31,15 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
     private val mainServersRegex = """main\s*=\s*\[(.*?)]""".toRegex(RegexOption.DOT_MATCHES_ALL)
     private val rulesServersRegex = """rules\s*=\s*\[(.*?)]""".toRegex(RegexOption.DOT_MATCHES_ALL)
 
-    suspend fun videosFromUrl(url: String, prefix: String) = videosFromUrl(url) { "$prefix - $it" }
+    suspend fun videosFromUrl(
+        url: String,
+        prefix: String = "StreamWish - "
+    ) = videosFromUrl(url) { "$prefix$it" }
 
-    suspend fun videosFromUrl(url: String, videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" }): List<Video> {
+    suspend fun videosFromUrl(
+        url: String,
+        videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" }
+    ): List<Video> {
         val embedUrl = getEmbedUrl(url).toHttpUrl()
         val id = getEmbedId(url)
 

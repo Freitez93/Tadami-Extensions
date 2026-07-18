@@ -24,7 +24,8 @@ class VoeExtractor(private val client: OkHttpClient, private val headers: Header
 
     private val redirectRegex = Regex("""window\.location\.href\s*=\s*['"]([^']+)['"]""")
 
-    fun videosFromUrl(url: String, prefix: String = ""): List<Video> {
+    fun videosFromUrl(url: String, prefix: String = "Voe - ") = videosFromUrl(url) { "$prefix$it" }
+    fun videosFromUrl(url: String, videoNameGen: (String) -> String = { quality -> "Voe - $quality" }): List<Video> {
         val host = url.toHttpUrl().host
         val headers = headers.newBuilder()
             .add("Origin", "https://$host")
@@ -66,12 +67,12 @@ class VoeExtractor(private val client: OkHttpClient, private val headers: Header
         if (m3u8 != null) {
             playlistUtils.extractFromHls(
                 m3u8,
-                videoNameGen = { quality -> "${prefix}Voe:$quality" },
+                videoNameGen = videoNameGen,
             ).let { videoList.addAll(it) }
         }
         if (mp4 != null) {
             videoList.add(
-                Video(videoUrl = mp4, videoTitle = "${prefix}Voe:MP4"),
+                Video(videoUrl = mp4, videoTitle = videoNameGen("MP4")),
             )
         }
 

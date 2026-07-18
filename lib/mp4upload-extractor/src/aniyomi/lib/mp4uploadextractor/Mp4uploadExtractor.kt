@@ -10,13 +10,13 @@ import okhttp3.OkHttpClient
 class Mp4uploadExtractor(private val client: OkHttpClient, private val headers: Headers) {
     fun videosFromUrl(
         url: String,
-        prefix: String = "",
+        prefix: String = "Mp4Upload - ",
         suffix: String = "",
-    ): List<Video> = videosFromUrl(url) { "${prefix}Mp4Upload - $it$suffix" }
+    ): List<Video> = videosFromUrl(url) { "$prefix$it$suffix" }
 
     fun videosFromUrl(
         url: String,
-        videoNameGen: (String) -> String,
+        videoNameGen: (String) -> String = { quality -> "Mp4Upload - $quality" }
     ): List<Video> {
         val newHeaders = headers.newBuilder()
             .set("referer", REFERER)

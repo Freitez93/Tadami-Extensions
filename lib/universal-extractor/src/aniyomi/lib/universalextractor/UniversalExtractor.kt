@@ -23,15 +23,16 @@ class UniversalExtractor(private val client: OkHttpClient) {
     private val context: Application by injectLazy()
     private val handler by lazy { Handler(Looper.getMainLooper()) }
 
-    @SuppressLint("SetJavaScriptEnabled")
     fun videosFromUrl(
         origRequestUrl: String,
         origRequestHeader: Headers,
         customQuality: String? = null,
-        prefix: String = "",
+        prefix: String? = "",
     ) = videosFromUrl(origRequestUrl, origRequestHeader, customQuality) {
         "$prefix${getHost(origRequestUrl)} - $it"
     }
+
+    @SuppressLint("SetJavaScriptEnabled")
     fun videosFromUrl(
         origRequestUrl: String,
         origRequestHeader: Headers,
