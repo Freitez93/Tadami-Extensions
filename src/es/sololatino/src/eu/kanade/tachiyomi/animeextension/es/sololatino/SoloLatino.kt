@@ -3,7 +3,7 @@ package eu.kanade.tachiyomi.animeextension.es.sololatino
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
-import aniyomi.lib.byseextractor.ByseExtractor
+import aniyomi.lib.filemoonextractor.FilemoonExtractor
 import aniyomi.lib.mp4uploadextractor.Mp4uploadExtractor
 import aniyomi.lib.streamwishextractor.StreamWishExtractor
 import aniyomi.lib.universalextractor.UniversalExtractor
@@ -21,7 +21,6 @@ import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.Source
-import keiyoushi.utils.parallelFlatMapBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -37,6 +36,15 @@ class SoloLatino : Source() {
     override val baseUrl = "https://sololatino.net"
     override val lang = "es"
     override val supportsLatest = true
+
+    // Extractores Utilizados.
+    private val voeExtractor by lazy { VoeExtractor(client, headers) }
+    private val filemoonExtractor by lazy { FilemoonExtractor(client) }
+    private val uqloadExtractor by lazy { UqloadExtractor(client) }
+    private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client, headers) }
+    private val universalExtractor by lazy { UniversalExtractor(client) }
+    private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
+    private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
 
     // ============================== Popular ===============================
     override fun popularAnimeRequest(page: Int): Request = GET("$baseUrl/buscar?tipo=todo&orden=popularidad&page=$page")
@@ -91,8 +99,8 @@ class SoloLatino : Source() {
             }
 
             // Parámetros comunes que se aplican a todas las peticiones
-            addQueryParameter("año", params.year)
-            addQueryParameter("nota", params.note)
+            (params.year != "0").also { addQueryParameter("año", params.year) }
+            (params.note != "0").also { addQueryParameter("nota", params.note) }
             addQueryParameter("page", page.toString())
         }
 
@@ -209,31 +217,60 @@ class SoloLatino : Source() {
 
     // ============================ Hoster ========================================
     override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        val response = client.newCall(GET(episode.url, headers)).await()
-        val document = response.asJsoup()
-        return document.apiPlayerToken("button[data-player-token]")
-            .parallelFlatMapBlocking { url ->
-                when {
-                    url.contains("embed69.org") || url.contains("xupalace.org") -> {
-                        Embed69(client).getLinks(url).flatMap { (language, links) ->
-                            links.map {
-                                val hostName = getHosterName(it)
+        return try {
+            val response = client.newCall(GET(episode.url, headers)).await()
+            val document = response.asJsoup()
+            document.apiPlayerToken("button[data-player-token]")
+                .flatMap { url ->
+                    if (url.contains("embed69.org") || url.contains("xupalace.org")) {
+                        Embed69(client).getLinks(url).flatMap { (_, hostLang, hostersByLang) ->
+                            hostersByLang.mapNotNull { hoster ->
+                                val hostLink = hoster.link ?: return@mapNotNull null
+                                val hostName = getHosterName(hostLink)
                                 Hoster(
-                                    hosterName = "$hostName $language",
-                                    hosterUrl = it,
+                                    hosterName = "$hostName ✦ $hostLang",
+                                    hosterUrl = hostLink,
                                     internalData = hostName,
-                                    // videoList = hosterVideoResolver(it)
                                 )
                             }
                         }
+                    } else {
+                        emptyList()
                     }
-
-                    else -> emptyList()
-                }
-            }.sortHosters()
+                }.sortHosters()
+        } catch (e: Exception) {
+            Log.e(name, "No se pudo obtener la lista de hosters para ${episode.url}")
+            emptyList()
+        }
     }
 
-    override suspend fun getVideoList(hoster: Hoster): List<Video> = hosterVideoResolver(hoster.hosterUrl, hoster.internalData)
+    override suspend fun getVideoList(hoster: Hoster): List<Video> {
+        val hosterUrl = hoster.hosterUrl
+        val hosterName = hoster.internalData
+        Log.d("SoloLatino", "Resolviendo URL: $hosterName -> $hosterUrl")
+        return when (hosterName) {
+            "Voe" -> voeExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+
+            "Uqload" -> uqloadExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+
+            "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+
+            "FileMoon" -> filemoonExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+
+            "VidHide" -> vidHideExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+
+            "StreamWish" -> {
+                var firstCall = streamWishExtractor.videosFromUrl(hosterUrl, "$hosterName:")
+                if (firstCall.isEmpty()) {
+                    universalExtractor.videosFromUrl(hosterUrl, headers, videoNameGen = { "$hosterName:$it" })
+                } else {
+                    firstCall
+                }
+            }
+
+            else -> universalExtractor.videosFromUrl(hosterUrl, headers, prefix = "")
+        }.sortVideos() // Manejo seguro de fallos
+    }
 
     // ============================== Filters ===============================
     override fun getFilterList() = SoloLatinoFilters.FILTER_LIST
@@ -259,12 +296,13 @@ class SoloLatino : Source() {
      * Standardized video sorting based on user preferences.
      */
     override fun List<Video>.sortVideos(): List<Video> {
+        val prefHost = preferences.getString("preferred_host", PREF_HOST_DEFAULT)!!
         val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
-        return sortedWith(
-            compareByDescending<Video> {
-                it.videoTitle.contains(prefQlty, true)
-            },
-        )
+        return this.map {
+            it.copy(
+                preferred = it.videoUrl.contains(prefQlty, true) && it.videoUrl.contains(prefHost, true)
+            )
+        }
     }
 
     // ============================= Preferences ============================
@@ -272,8 +310,8 @@ class SoloLatino : Source() {
         ListPreference(screen.context).apply {
             key = "preferred_host"
             title = "Servidor Preferido"
-            entries = SERVERS
-            entryValues = SERVERS
+            entries = PREF_HOST_VALUES
+            entryValues = PREF_HOST_VALUES
             setDefaultValue(PREF_HOST_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
@@ -281,8 +319,8 @@ class SoloLatino : Source() {
         ListPreference(screen.context).apply {
             key = "preferred_lang"
             title = "Idioma Preferido"
-            entries = LANGUAGES_DISPLAY
-            entryValues = LANGUAGES_VALUES
+            entries = PREF_LANG_DISPLAY
+            entryValues = PREF_LANG_VALUES
             setDefaultValue(PREF_LANG_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
@@ -290,8 +328,8 @@ class SoloLatino : Source() {
         ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Calidad Preferida"
-            entries = QUALITIES
-            entryValues = QUALITIES
+            entries = PREF_QLTY_VALUES
+            entryValues = PREF_QLTY_VALUES
             setDefaultValue(PREF_QLTY_DEFAULT)
             summary = "%s"
         }.also(screen::addPreference)
@@ -318,43 +356,6 @@ class SoloLatino : Source() {
         }
     }
 
-    // Extractores.
-    private val voeExtractor by lazy { VoeExtractor(client, headers) }
-    private val byseExtractor by lazy { ByseExtractor(client) }
-    private val uqloadExtractor by lazy { UqloadExtractor(client) }
-    private val mp4uploadExtractor by lazy { Mp4uploadExtractor(client, headers) }
-    private val universalExtractor by lazy { UniversalExtractor(client) }
-    private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
-    private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
-    private suspend fun hosterVideoResolver(
-        url: String,
-        hosterName: String = "Default",
-    ): List<Video> = runCatching {
-        Log.d("SoloLatino", "Resolviendo URL: $hosterName -> $url")
-        when (hosterName) {
-            "Voe" -> voeExtractor.videosFromUrl(url, "")
-
-            "Uqload" -> uqloadExtractor.videosFromUrl(url, "")
-
-            "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(url, { "$hosterName:$it" })
-
-            "FileMoon" -> byseExtractor.videosFromUrl(url, { "$hosterName:$it" })
-
-            "VidHide" -> vidHideExtractor.videosFromUrl(url, { "$hosterName:$it" })
-
-            "StreamWish" -> {
-                var firstCall = streamWishExtractor.videosFromUrl(url, { "$hosterName:$it" })
-                if (firstCall.isEmpty()) {
-                    universalExtractor.videosFromUrl(url, headers, videoNameGen = { "$hosterName:$it" })
-                } else {
-                    firstCall
-                }
-            }
-
-            else -> universalExtractor.videosFromUrl(url, headers, prefix = "")
-        }
-    }.getOrDefault(emptyList()).sortVideos() // Manejo seguro de fallos
-
     // Obtenert una URL absoluta usando baseUrl.
     private fun absUrl(path: String): String = when {
         path.startsWith("http") -> path
@@ -368,9 +369,9 @@ class SoloLatino : Source() {
         "voe" in url -> "Voe"
         "uqload" in url -> "Uqload"
         "mp4upload" in url -> "Mp4Upload"
-        "byse" in url -> "FileMoon"
-        "hglink" in url -> "StreamWish"
-        "minochinos" in url -> "VidHide"
+        listOf("byse", "filemoon").any { it in url } -> "FileMoon"
+        listOf("hglink", "streamwish").any { it in url } -> "StreamWish"
+        listOf("minochinos", "vidhide").any { it in url } -> "VidHide"
         else -> "Default"
     }
 
@@ -420,14 +421,14 @@ class SoloLatino : Source() {
 
     companion object {
         // Elementos divididos apropiadamente en lugar de un string aglomerado
-        private val QUALITIES = arrayOf("1080p", "720p", "480p", "360p")
+        private val PREF_QLTY_VALUES = arrayOf("1080p", "720p", "480p", "360p")
         private const val PREF_QLTY_DEFAULT = "720p"
 
-        private val SERVERS = arrayOf("StreamWish", "Mp4Upload", "FileMoon", "Uqload", "VidHide", "Voe")
+        private val PREF_HOST_VALUES = arrayOf("StreamWish", "Mp4Upload", "FileMoon", "Uqload", "VidHide", "Voe")
         private const val PREF_HOST_DEFAULT = "VidHide"
 
-        private val LANGUAGES_VALUES = arrayOf("ESP", "LAT", "SUB")
-        private val LANGUAGES_DISPLAY = arrayOf("🇪🇸 Español", "🇲🇽 Latino", "🇪🇺 Subtitulado")
+        private val PREF_LANG_VALUES = arrayOf("ESP", "LAT", "SUB")
+        private val PREF_LANG_DISPLAY = arrayOf("🇪🇸 Español", "🇲🇽 Latino", "🇪🇺 Subtitulado")
         private const val PREF_LANG_DEFAULT = "LAT"
     }
 }

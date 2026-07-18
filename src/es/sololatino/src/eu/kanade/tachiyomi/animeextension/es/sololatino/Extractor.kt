@@ -2,11 +2,13 @@ package eu.kanade.tachiyomi.animeextension.es.sololatino
 
 import android.util.Base64
 import android.util.Log
-import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.parseAs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import javax.crypto.Cipher
@@ -14,64 +16,51 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class Embed69(private val client: OkHttpClient) {
-    suspend fun getLinks(url: String): Map<String, List<String>> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val res = client.newCall(GET(url)).execute().asJsoup()
-                val pageHtml = res.html()
+    suspend fun getLinks(url: String): List<ServersByLang> = withContext(Dispatchers.IO) {
+        try {
+            val response = client.newCall(GET(url)).execute().asJsoup()
+            val pageHtml = response.html()
 
-                // Extraer dataLink
-                val dataLinkJson = res.selectFirst("script:containsData(dataLink)")?.data()
-                    ?.substringAfter("dataLink =")
-                    ?.substringBefore(";")
-                    ?.trim()
-                    ?: run {
-                        Log.e("Embed69", "No se encontró dataLink en la página: $url")
-                        return@withContext emptyMap()
-                    }
-
-                // Extraer POW_CHALLENGE y POW_SALT
-                val challenge = getFirstMatch("""POW_CHALLENGE\s*=\s*['"]([^'"]+)['"]""", pageHtml)
-                val powSalt = getFirstMatch("""POW_SALT\s*=\s*['"]([^'"]+)['"]""", pageHtml)
-                if (challenge == null || powSalt == null) {
-                    Log.e("Embed69", "No se pudo extraer POW_CHALLENGE o POW_SALT de: $url")
-                    return@withContext emptyMap()
+            // Extraer dataLink
+            val dataLinkJson = response.selectFirst("script:containsData(dataLink)")?.data()
+                ?.substringBetween("dataLink =", ";")
+                ?: run {
+                    throw Error("No se encontró dataLink en la página: $url")
                 }
 
-                // Resolver PoW
-                val aesKey = solveEmbed69PoW(challenge, powSalt)
-                if (aesKey == null) {
-                    Log.e("Embed69", "PoW falló para: $url")
-                    return@withContext emptyMap()
-                }
-
-                // Parsear JSON de dataLink
-                val serversByLang = parseServersByLang(dataLinkJson)
-                if (serversByLang.isNullOrEmpty()) {
-                    Log.e("Embed69", "JSON de dataLink no se pudo parsear o está vacío")
-                    return@withContext emptyMap()
-                }
-
-                // Descifrar enlaces y agrupar por idioma
-                val allLinksByLanguage = mutableMapOf<String, MutableList<String>>()
-                serversByLang.forEach { lang ->
-                    lang.sortedEmbeds.forEach { server ->
-                        server.link?.let { encrypted ->
-                            val decryptedUrl = decryptAESLocal(encrypted, aesKey)
-                            if (!decryptedUrl.isNullOrBlank()) {
-                                val language = lang.videoLanguage ?: "Unknown"
-                                allLinksByLanguage.getOrPut(language) {
-                                    mutableListOf()
-                                }.add(decryptedUrl)
-                            }
-                        }
-                    }
-                }
-                allLinksByLanguage
-            } catch (e: Exception) {
-                Log.e("Embed69", "Error al procesar Embed69: ${e.message}")
-                emptyMap()
+            // Extraer POW_CHALLENGE y POW_SALT
+            val challenge = getFirstMatch("""POW_CHALLENGE\s*=\s*['"]([^'"]+)['"]""", pageHtml)
+            val powSalt = getFirstMatch("""POW_SALT\s*=\s*['"]([^'"]+)['"]""", pageHtml)
+            if (challenge == null || powSalt == null) {
+                throw Error("No se pudo extraer POW_CHALLENGE o POW_SALT de: $url")
             }
+
+            // Resolver PoW
+            val aesKey = solveEmbed69PoW(challenge, powSalt)
+                ?: throw Error("PoW falló para: $url")
+
+            // Parsear JSON de dataLink
+            val serversByLang = dataLinkJson.parseAs<List<ServersByLang>>()
+            if (serversByLang.isEmpty()) {
+                throw Error("JSON de dataLink no se pudo parsear o está vacío")
+            }
+
+            serversByLang.forEach { lang ->
+                lang.sortedEmbeds.forEach { server ->
+                    server.link = server.link?.let { encrypted ->
+                        decryptAESLocal(encrypted, aesKey) ?: encrypted
+                    }
+                }
+                lang.downloadEmbeds.forEach { server ->
+                    server.link = server.link?.let { encrypted ->
+                        decryptAESLocal(encrypted, aesKey) ?: encrypted
+                    }
+                }
+            }
+            serversByLang
+        } catch (e: Exception) {
+            Log.e("Embed69", "Error: ${e.message}")
+            emptyList()
         }
     }
 
@@ -98,14 +87,12 @@ class Embed69(private val client: OkHttpClient) {
         return try {
             val raw = Base64.decode(encryptedBase64, Base64.NO_WRAP)
             if (raw.size < 17) {
-                Log.e("Embed69", "AES decrypt: raw data too short (${raw.size})")
-                return null
+                throw Error("raw data too short (${raw.size})")
             }
             val iv = raw.copyOfRange(0, 16)
             val ciphertext = raw.copyOfRange(16, raw.size)
             if (ciphertext.isEmpty()) {
-                Log.e("Embed69", "AES decrypt: ciphertext vacío")
-                return null
+                throw Error("ciphertext vacío")
             }
 
             val keySpec = SecretKeySpec(aesKey.copyOfRange(0, 32), "AES")
@@ -129,43 +116,23 @@ class Embed69(private val client: OkHttpClient) {
         }
     }
 
-    // Parsear JSON de dataLink
-    private fun parseServersByLang(json: String): List<ServersByLang>? = try {
-        val jsonArray = org.json.JSONArray(json)
-        val result = mutableListOf<ServersByLang>()
-        for (i in 0 until jsonArray.length()) {
-            val fileObject = jsonArray.getJSONObject(i)
-            val language = fileObject.optString("video_language")
-            val embeds = fileObject.optJSONArray("sortedEmbeds") ?: continue
-            val sortedEmbeds = mutableListOf<ServersByLang.Server>()
-            for (j in 0 until embeds.length()) {
-                val embedObj = embeds.getJSONObject(j)
-                sortedEmbeds.add(
-                    ServersByLang.Server(
-                        servername = embedObj.optString("servername"),
-                        link = embedObj.optString("link"),
-                    ),
-                )
-            }
-            result.add(ServersByLang(fileId = fileObject.optString("file_id"), videoLanguage = language, sortedEmbeds = sortedEmbeds))
-        }
-        result
-    } catch (e: Exception) {
-        Log.e("Embed69", "Error al parsear JSON: ${e.message}")
-        null
-    }
-
     // Data classes
-    private data class ServersByLang(
-        val fileId: String? = null,
+    @Serializable
+    data class ServersByLang(
+        @SerialName("file_id")
+        val fileId: Long? = null,
+        @SerialName("video_language")
         val videoLanguage: String? = null,
         val sortedEmbeds: List<Server> = emptyList(),
-    ) {
-        data class Server(
-            val servername: String? = null,
-            val link: String? = null,
-        )
-    }
+        val downloadEmbeds: List<Server> = emptyList(),
+    )
+
+    @Serializable
+    data class Server(
+        val servername: String? = null,
+        var link: String? = null,
+        val type: String? = null,
+    )
 }
 
 class XupaLace(private val client: OkHttpClient) {
@@ -195,8 +162,7 @@ class XupaLace(private val client: OkHttpClient) {
 
                 if (langLinks.isNotEmpty()) {
                     langLinks.forEach { link ->
-                        allLinksByLanguage.getOrPut(language) { mutableListOf() }
-                            .add(link)
+                        allLinksByLanguage.getOrPut(language) { mutableListOf() }.add(link)
                     }
                 }
             }
@@ -222,10 +188,19 @@ class XupaLace(private val client: OkHttpClient) {
         }
         return null
     }
-
-    // Función para obtener el primer match de un regex
-    private fun getFirstMatch(pattern: String, input: String): String? = Regex(pattern).find(input)?.groupValues?.get(1)
 }
 
 // ================================ Funciones Auxiliares ================================
+// Función para obtener el primer match de un regex
 fun getFirstMatch(pattern: String, input: String): String? = pattern.toRegex().find(input)?.groupValues?.get(1)
+
+// Funcion para obtener un texto entre dos delimitadores.
+fun String.substringBetween(after: String, before: String): String {
+    val startIndex = this.indexOf(after) + after.length
+    val endIndex = this.indexOf(before, startIndex)
+    return if (startIndex != -1 && endIndex != -1) {
+        this.substring(startIndex, endIndex)
+    } else {
+        ""
+    }
+}
