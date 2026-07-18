@@ -300,7 +300,7 @@ class SoloLatino : Source() {
         val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
         return this.map {
             it.copy(
-                preferred = it.videoUrl.contains(prefQlty, true) && it.videoUrl.contains(prefHost, true)
+                preferred = it.videoUrl.contains(prefQlty, true) && it.videoUrl.contains(prefHost, true),
             )
         }
     }

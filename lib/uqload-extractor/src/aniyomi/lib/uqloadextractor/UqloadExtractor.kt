@@ -15,12 +15,12 @@ class UqloadExtractor(private val client: OkHttpClient) {
 
     suspend fun videosFromUrl(
         url: String,
-        prefix: String = "Uqload - "
+        prefix: String = "Uqload - ",
     ) = videosFromUrl(url) { "$prefix$it" }
 
     suspend fun videosFromUrl(
         url: String,
-        videoNameGen: (String) -> String = { quality -> "Uqload - $quality" }
+        videoNameGen: (String) -> String = { quality -> "Uqload - $quality" },
     ): List<Video> {
         val fixedUrl = if (url.startsWith(BASE_URL, true)) url else url.replace(hostRegex, BASE_URL)
         val doc = client.newCall(GET(fixedUrl)).awaitSuccess().useAsJsoup()

@@ -33,12 +33,12 @@ class StreamWishExtractor(private val client: OkHttpClient, private val headers:
 
     suspend fun videosFromUrl(
         url: String,
-        prefix: String = "StreamWish - "
+        prefix: String = "StreamWish - ",
     ) = videosFromUrl(url) { "$prefix$it" }
 
     suspend fun videosFromUrl(
         url: String,
-        videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" }
+        videoNameGen: (String) -> String = { quality -> "StreamWish - $quality" },
     ): List<Video> {
         val embedUrl = getEmbedUrl(url).toHttpUrl()
         val id = getEmbedId(url)

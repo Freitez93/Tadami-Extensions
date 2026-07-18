@@ -83,37 +83,35 @@ class Embed69(private val client: OkHttpClient) {
     }
 
     // Descifrar AES localmente
-    private fun decryptAESLocal(encryptedBase64: String, aesKey: ByteArray): String? {
-        return try {
-            val raw = Base64.decode(encryptedBase64, Base64.NO_WRAP)
-            if (raw.size < 17) {
-                throw Error("raw data too short (${raw.size})")
-            }
-            val iv = raw.copyOfRange(0, 16)
-            val ciphertext = raw.copyOfRange(16, raw.size)
-            if (ciphertext.isEmpty()) {
-                throw Error("ciphertext vacío")
-            }
-
-            val keySpec = SecretKeySpec(aesKey.copyOfRange(0, 32), "AES")
-            try {
-                val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-                cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
-                String(cipher.doFinal(ciphertext), Charsets.UTF_8)
-            } catch (e: Exception) {
-                Log.w("Embed69", "PKCS5Padding falló: ${e.message}, probando NoPadding")
-                val cipher = Cipher.getInstance("AES/CBC/NoPadding")
-                cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
-                val decrypted = cipher.doFinal(ciphertext)
-                val padByte = decrypted.last().toInt() and 0xFF
-                val padLen = if (padByte in 1..16 && decrypted.size >= padByte) padByte else 0
-                val clean = if (padLen > 0) decrypted.copyOfRange(0, decrypted.size - padLen) else decrypted
-                String(clean, Charsets.UTF_8)
-            }
-        } catch (e: Exception) {
-            Log.e("Embed69", "AES decrypt error: ${e.message}")
-            null
+    private fun decryptAESLocal(encryptedBase64: String, aesKey: ByteArray): String? = try {
+        val raw = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+        if (raw.size < 17) {
+            throw Error("raw data too short (${raw.size})")
         }
+        val iv = raw.copyOfRange(0, 16)
+        val ciphertext = raw.copyOfRange(16, raw.size)
+        if (ciphertext.isEmpty()) {
+            throw Error("ciphertext vacío")
+        }
+
+        val keySpec = SecretKeySpec(aesKey.copyOfRange(0, 32), "AES")
+        try {
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
+            String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.w("Embed69", "PKCS5Padding falló: ${e.message}, probando NoPadding")
+            val cipher = Cipher.getInstance("AES/CBC/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
+            val decrypted = cipher.doFinal(ciphertext)
+            val padByte = decrypted.last().toInt() and 0xFF
+            val padLen = if (padByte in 1..16 && decrypted.size >= padByte) padByte else 0
+            val clean = if (padLen > 0) decrypted.copyOfRange(0, decrypted.size - padLen) else decrypted
+            String(clean, Charsets.UTF_8)
+        }
+    } catch (e: Exception) {
+        Log.e("Embed69", "AES decrypt error: ${e.message}")
+        null
     }
 
     // Data classes

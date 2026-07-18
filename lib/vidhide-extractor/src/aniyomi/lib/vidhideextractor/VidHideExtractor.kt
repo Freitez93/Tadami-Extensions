@@ -25,12 +25,12 @@ class VidHideExtractor(private val client: OkHttpClient, private val headers: He
 
     suspend fun videosFromUrl(
         url: String,
-        prefix: String = "VidHide - "
+        prefix: String = "VidHide - ",
     ) = videosFromUrl(url) { "$prefix$it" }
 
     suspend fun videosFromUrl(
         url: String,
-        videoNameGen: (String) -> String = { quality -> "VidHide - $quality" }
+        videoNameGen: (String) -> String = { quality -> "VidHide - $quality" },
     ): List<Video> {
         val script = fetchAndExtractScript(url) ?: return emptyList()
         val playlists = extractVideoUrl(script, url)
