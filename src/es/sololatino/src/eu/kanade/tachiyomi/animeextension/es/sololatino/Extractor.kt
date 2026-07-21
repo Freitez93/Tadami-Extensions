@@ -133,61 +133,6 @@ class Embed69(private val client: OkHttpClient) {
     )
 }
 
-class XupaLace(private val client: OkHttpClient) {
-    fun getLinks(url: String): Map<String, List<String>> {
-        return try {
-            val document = client.newCall(GET(url)).execute().asJsoup()
-            val mapUrl = mapOf(
-                ".OD_LAT > li" to "LAT",
-                ".OD_ES > li" to "ESP",
-                ".OD_EN > li" to "SUB",
-                "li[data-lang='0']" to "LAT",
-                "li[data-lang='1']" to "ESP",
-                "li[data-lang='2']" to "SUB",
-            )
-
-            val allLinksByLanguage = mutableMapOf<String, MutableList<String>>()
-            mapUrl.forEach { (selector, language) ->
-                val langLinks = document.select(selector)
-                    .mapNotNull { element ->
-                        runCatching {
-                            val onclick = element.attr("onclick").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                            extractUrlFromOnclick(onclick)
-                        }.onFailure { error ->
-                            Log.e("XupaLace", "Error al procesar onclick: ${error.message}", error)
-                        }.getOrNull()
-                    }
-
-                if (langLinks.isNotEmpty()) {
-                    langLinks.forEach { link ->
-                        allLinksByLanguage.getOrPut(language) { mutableListOf() }.add(link)
-                    }
-                }
-            }
-            allLinksByLanguage
-        } catch (e: Exception) {
-            Log.e("XupaLace", "Error al procesar XupaLace: ${e.message}")
-            emptyMap()
-        }
-    }
-
-    // Extraer URL de onclick
-    private fun extractUrlFromOnclick(onclick: String): String? {
-        // Patrón 1: URL entre comillas
-        getFirstMatch("""['"](https?:\/\/[^'"]+)['"]""", onclick)?.let { return it }
-        // Patrón 2: .php?link=BASE64&servidor=...
-        getFirstMatch("""\.php\?link=([^&]+)&servidor=""", onclick)?.let { encoded ->
-            return try {
-                String(Base64.decode(encoded, Base64.DEFAULT))
-            } catch (e: IllegalArgumentException) {
-                Log.w("XupaLace", "Base64 inválido: $encoded", e)
-                null
-            }
-        }
-        return null
-    }
-}
-
 // ================================ Funciones Auxiliares ================================
 // Función para obtener el primer match de un regex
 fun getFirstMatch(pattern: String, input: String): String? = pattern.toRegex().find(input)?.groupValues?.get(1)

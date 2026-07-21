@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.Source
+import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -28,6 +29,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import org.jsoup.nodes.Element
+import java.time.Instant
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -126,11 +128,10 @@ class SoloLatino : Source() {
     override fun animeDetailsRequest(anime: SAnime): Request = GET(anime.url, headers)
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
-        val img = doc.selectFirst("div > img[style]")?.attr("src")
         val synopsis = doc.selectFirst("p[class*='leading-relaxed']")?.text()
         return SAnime.create().apply {
             this.title = doc.selectFirst("div > img[style]")!!.attr("alt")
-            this.thumbnail_url = img?.replace("/w500/", "/w1280/")
+            this.thumbnail_url = doc.selectFirst("div > img[style]")?.attr("src")
             this.background_url = doc.selectFirst("meta[property='og:image']")?.attr("content")
             this.description = buildString {
                 append("${synopsis ?: "Sin descripción disponible."}\n")
@@ -138,7 +139,7 @@ class SoloLatino : Source() {
                 doc.getInfo("Estreno|Año")?.also { append("\n – Estreno: $it") }
                 doc.getInfo("Temporadas")?.also { append(" • $it temp.") }
                 doc.getInfo("Último aire")?.also { append("\n – Último Episodio: $it") }
-                doc.getInfo("Título original").also { append("\n – Título Original: ${it ?: title }") }
+                doc.getInfo("Título original")?.also { append("\n – Título Original: $it") }
                 doc.getInfo("Idioma original")?.also { append("\n – Idioma Original: $it") }
                 doc.getInfo("Duración")?.also { append("\n – Duración: $it") }
                 doc.getInfo("País")?.also { append("\n – País: $it") }
@@ -147,10 +148,10 @@ class SoloLatino : Source() {
 
             // Metadata parsing
             this.genre = doc.select("div.flex > a[href*='/genero/']")
-                .joinToString(" ,") { it.text() }
+                .joinToString { it.text() }
             // Strict author parsing to avoid metadata
             this.author = doc.selectFirst("a[href*='/persona/']:matches(Creador|Director) > img")
-                ?.joinToString(", ") { it.attr("alt") }
+                ?.joinToString { it.attr("alt") }
             // Status is generally Completed for movies
             val statusText = doc.selectFirst("div.items-center > span.rounded")?.text() ?: "Ended"
             this.status = when (statusText) {
@@ -300,7 +301,7 @@ class SoloLatino : Source() {
         val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
         return this.map {
             it.copy(
-                preferred = it.videoUrl.contains(prefQlty, true) && it.videoUrl.contains(prefHost, true),
+                preferred = it.videoTitle.contains(prefQlty, true) && it.videoTitle.contains(prefHost, true),
             )
         }
     }
@@ -328,7 +329,7 @@ class SoloLatino : Source() {
         ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Calidad Preferida"
-            entries = PREF_QLTY_VALUES
+            entries = PREF_QLTY_DISPLAY
             entryValues = PREF_QLTY_VALUES
             setDefaultValue(PREF_QLTY_DEFAULT)
             summary = "%s"
@@ -421,7 +422,8 @@ class SoloLatino : Source() {
 
     companion object {
         // Elementos divididos apropiadamente en lugar de un string aglomerado
-        private val PREF_QLTY_VALUES = arrayOf("1080p", "720p", "480p", "360p")
+        private val PREF_QLTY_VALUES = arrayOf("1080", "720", "480", "360")
+        private val PREF_QLTY_DISPLAY = arrayOf("1080p", "720p", "480p", "360p")
         private const val PREF_QLTY_DEFAULT = "720p"
 
         private val PREF_HOST_VALUES = arrayOf("StreamWish", "Mp4Upload", "FileMoon", "Uqload", "VidHide", "Voe")

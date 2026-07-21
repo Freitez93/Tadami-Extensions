@@ -28,20 +28,6 @@ object SoloLatinoFilters {
     class SortFilter : UriPartFilter("Ordenar", Data.SORT)
 
     /**
-     * Grupo que organiza filtros secundarios bajo una sola categoría.
-     */
-    class OtherOptionsGroup :
-        AnimeFilter.Group<UriPartFilter>(
-            "Otros filtros",
-            listOf(
-                GenreFilter(),
-                YearFilter(),
-                NoteFilter(),
-                SortFilter(),
-            ),
-        )
-
-    /**
      * Estructura de la lista de filtros que se muestra en la aplicación.
      */
     val FILTER_LIST get() = AnimeFilterList(
@@ -49,7 +35,10 @@ object SoloLatinoFilters {
         TypeFilter(),
         AnimeFilter.Separator(),
         AnimeFilter.Header("Estos filtros afectan a la búsqueda por texto"),
-        OtherOptionsGroup(),
+        GenreFilter(),
+        YearFilter(),
+        NoteFilter(),
+        SortFilter(),
     )
 
     /**
@@ -70,15 +59,13 @@ object SoloLatinoFilters {
     internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
         if (filters.isEmpty()) return FilterSearchParams()
 
-        val others = filters.getFirst<OtherOptionsGroup>()
-
         return FilterSearchParams(
             platform = filters.asUriPart<PlatformFilter>(),
             type = filters.asUriPart<TypeFilter>(),
-            genre = others.getItemUri<GenreFilter>(),
-            year = others.getItemUri<YearFilter>(),
-            note = others.getItemUri<NoteFilter>(),
-            sort = others.getItemUri<SortFilter>(),
+            genre = filters.asUriPart<GenreFilter>(),
+            year = filters.asUriPart<YearFilter>(),
+            note = filters.asUriPart<NoteFilter>(),
+            sort = filters.asUriPart<SortFilter>(),
         )
     }
 
@@ -86,8 +73,6 @@ object SoloLatinoFilters {
     private inline fun <reified R> AnimeFilterList.getFirst(): R = first { it is R } as R
 
     private inline fun <reified R> AnimeFilterList.asUriPart(): String = (getFirst<R>() as UriPartFilter).toUriPart()
-
-    private inline fun <reified R> AnimeFilter.Group<UriPartFilter>.getItemUri(): String = state.first { it is R }.toUriPart()
 
     /**
      * Datos estáticos que alimentan las opciones de los filtros.
