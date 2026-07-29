@@ -9,6 +9,7 @@ import aniyomi.lib.unpacker.Unpacker
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.FetchType
+import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -129,17 +130,23 @@ class MissAV : Source() {
         val takeHref = response.request.url.toString()
         val baseCode = takeHref.substringAfterLast("/")
         val episodes = mutableListOf<SEpisode>()
-        // Se Extraen los Episodios de MediaInfo.
+
+        // Se Extraen duration dateText y masterPlaylist.
+        val duration = document.select("meta[property='og:video:duration']").attr("content").toInt()
         val dateText = document.select("time[datetime]").text().trim()
+        val unpacker = document.select("script").find { it.html().contains("eval(function(p,a,c,k,e,d)") }
+            ?.html()
+            ?.let(Unpacker::unpack) ?: ""
+        val masterPlaylist = getFirstMatch(Regex("""['"](https:.*?playlist\.m3u8)['"]"""), unpacker)
         episodes.add(
             SEpisode.create().apply {
-                this.url = takeHref
+                this.url = masterPlaylist ?: takeHref
                 this.name = "Movie"
                 this.date_upload = getDateLong("yyyy-MM-dd", dateText)
                 this.episode_number = -1F
                 // this.fillermark = false
                 // this.scanlator = "MissAV"
-                // this.summary = ""
+                this.summary = "Duration: ${secondsToTime(duration)}"
                 this.preview_url = "https://fourhoi.com/$baseCode/cover-t.jpg"
             },
         )
@@ -147,22 +154,19 @@ class MissAV : Source() {
         return episodes.reversed()
     }
 
-    // =============================== Video ================================
-    override fun videoListRequest(episode: SEpisode): Request = GET(absUrl(episode.url), headers)
-    override fun videoListParse(response: Response): List<Video> {
-        val document = response.asJsoup()
-        val unpacker = document.selectFirst("script:containsData(function(p,a,c,k,e,d))")
-            ?.data()
-            ?.let(Unpacker::unpack)?.ifEmpty { null }
-            ?: return emptyList()
-        val masterPlaylist = """source\s*=\s*['"](.*?)['"]""".toRegex().find(unpacker)
-            ?.groupValues?.get(1)?.trim() ?: ""
-        return playlistExtractor.extractFromHls(
-            playlistUrl = masterPlaylist,
-            referer = "https://missav.live/",
-            videoNameGen = { quality -> "MissAV:$quality" },
-        ).sortVideos()
-    }
+    // ============================ Hoster ========================================
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> = listOf(
+        Hoster(
+            hosterName = "MissAv",
+            hosterUrl = episode.url,
+        ),
+    )
+
+    override suspend fun getVideoList(hoster: Hoster): List<Video> = playlistExtractor.extractFromHls(
+        playlistUrl = hoster.hosterUrl,
+        referer = "$baseUrl/",
+        videoNameGen = { quality -> "$quality" },
+    ).sortVideos()
 
     // ============================== Filters ===============================
     override fun getFilterList() = getFilters()
@@ -174,15 +178,12 @@ class MissAV : Source() {
      */
     override fun List<Video>.sortVideos(): List<Video> {
         val prefQlty = preferences.getString("preferred_qlty", PREF_QLTY_DEFAULT)!!
-        return this.sortedWith(
-            compareByDescending<Video> {
-                // Prioriza los videos cuyo título contiene la calidad preferida
-                it.videoTitle.contains(prefQlty, ignoreCase = true)
-            }.thenByDescending {
-                // Luego ordena por resolución (ej: 1080p > 720p)
-                it.resolution
-            },
-        )
+        return this.map {
+            Log.d(name, it.headers.toString())
+            it.copy(
+                preferred = it.videoTitle.contains(prefQlty, true),
+            )
+        }
     }
 
     // ============================= Preferences ============================
@@ -242,6 +243,23 @@ class MissAV : Source() {
         }
     }
 
+    // Transforma segundos a hh:mm:ss
+    private fun secondsToTime(seconds: Int): String {
+        // 1. Calcular las horas dividiendo entre los segundos de una hora (3600)
+        val horas = seconds / 3600
+        // 2. Obtener los segundos restantes con el residuo (%) y dividirlos entre 60
+        val minutos = (seconds % 3600) / 60
+        // 3. Obtener los segundos finales con el residuo de la división entre 60
+        val segundos = seconds % 60
+        // 4. Formatear el texto para asegurar los dos dígitos por cada elemento
+        // Resultado: "01h 01m 05s"
+        return if (horas > 0) {
+            "%02dh %02dm %02ds".format(horas, minutos, segundos)
+        } else {
+            "%02dm %02ds".format(minutos, segundos)
+        }
+    }
+
     // Arrelga el Titulo con etiquetas
     private fun getTitle(code: String, title: String = "", getCode: Boolean = false): String {
         val tags = mutableListOf<String>() // Lista mutable para acumular tags
@@ -268,10 +286,14 @@ class MissAV : Source() {
     private fun newHeaders(): Headers = headers.newBuilder().apply {
         set("Origin", baseUrl)
         set("Referer", "$baseUrl/")
+        set("User-Agent", UA)
     }.build()
 
     // Obtener la primera key en una lista o Null
     private inline fun <reified T> List<*>.firstInstanceOrNull(): T? = filterIsInstance<T>().firstOrNull()
+
+    // Función para obtener el primer match de un regex
+    fun getFirstMatch(pattern: Regex, input: String): String? = pattern.find(input)?.groupValues?.get(1)
 
     companion object {
         // Variables de baseUrl
@@ -286,5 +308,8 @@ class MissAV : Source() {
         private val PREF_QLTY_VALUES = listOf("720", "480", "360")
         private val PREF_QLTY_ENTRIES = listOf("720p", "480p", "360p")
         private val PREF_QLTY_DEFAULT = PREF_QLTY_VALUES.first()
+
+        //
+        private val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.3 Aniyomi/0.15.3"
     }
 }
