@@ -1,5 +1,7 @@
 package aniyomi.lib.uqloadextractor
 
+import aniyomi.lib.playlistutils.PlaylistUtils
+import aniyomi.lib.unpacker.autoUnpacker
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
@@ -8,9 +10,11 @@ import okhttp3.Headers
 import okhttp3.OkHttpClient
 
 class UqloadExtractor(private val client: OkHttpClient) {
+    private val playlistUtils by lazy { PlaylistUtils(client, Headers.EMPTY) }
     companion object {
         const val BASE_URL = "https://uqload.is/"
         private val hostRegex by lazy { Regex("""https?://(?:www\.)?[^/]+/""") }
+        private val VIDEO_REGEX by lazy { Regex("""["'](https?://[^"'\s]+\.(?:m3u8|mp4|mpd)[^"'\s]*)["']""") }
     }
 
     suspend fun videosFromUrl(
@@ -23,18 +27,27 @@ class UqloadExtractor(private val client: OkHttpClient) {
         videoNameGen: (String) -> String = { quality -> "Uqload - $quality" },
     ): List<Video> {
         val fixedUrl = if (url.startsWith(BASE_URL, true)) url else url.replace(hostRegex, BASE_URL)
-        val doc = client.newCall(GET(fixedUrl)).awaitSuccess().useAsJsoup()
-        val script = doc.selectFirst("script:containsData(sources:)")?.data()
+        val response = client.newCall(GET(fixedUrl)).awaitSuccess()
+        val document = response.useAsJsoup()
+        val script = document.selectFirst("script:containsData(sources:)")?.data()
+            ?: document.select("script").find { it.html().contains("eval(function(p,a,c,k,e,d)") }
+                ?.html()
+                ?.let(::autoUnpacker)
             ?: return emptyList()
 
-        val videoUrl = script.substringAfter("sources: [\"").substringBefore('"')
-            .takeIf(String::isNotBlank)
-            ?.takeIf { it.startsWith("http") }
-            ?: return emptyList()
-
+        val videoUrl = VIDEO_REGEX.find(script)?.groupValues[1] ?: return emptyList()
         val videoHeaders = Headers.headersOf("Referer", BASE_URL)
         val quality = videoNameGen("MP4")
+        return when {
+            "m3u8" in videoUrl -> {
+                playlistUtils.extractFromHls(videoUrl, BASE_URL, videoNameGen = videoNameGen)
+            }
 
-        return listOf(Video(videoUrl = videoUrl, videoTitle = quality, headers = videoHeaders))
+            "mp4" in videoUrl -> {
+                listOf(Video(videoUrl = videoUrl, videoTitle = quality, headers = videoHeaders))
+            }
+
+            else -> emptyList()
+        }
     }
 }
