@@ -226,9 +226,9 @@ class XChina : Source() {
         // 3. Obtener los segundos finales con el residuo de la división entre 60
         val segundos = seconds % 60
         // 4. Formatear el texto para asegurar los dos dígitos por cada elemento
-        // Resultado: "01h 01m 05s"
+        // Resultado: "1h 01m 05s"
         return if (horas > 0) {
-            "%02dh %02dm %02ds".format(horas, minutos, segundos)
+            "%dh %02dm %02ds".format(horas, minutos, segundos)
         } else {
             "%02dm %02ds".format(minutos, segundos)
         }
@@ -255,7 +255,7 @@ class XChina : Source() {
             "https://xchina.co", "https://tw.xchina.co", "https://kr.xchina.co",
             "https://en.xchina.co", "https://es.xchina.co",
         )
-        private val PREF_DOMAIN_DEFAULT = PREF_DOMAIN_ENTRIES.first()
+        private val PREF_DOMAIN_DEFAULT = PREF_DOMAIN_VALUES.first()
 
         // Variables Otros.
         private val IMG_REGEX = """url\(['"]?(.*?)['"]?\)""".toRegex()

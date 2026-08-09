@@ -251,10 +251,10 @@ class MissAV : Source() {
         val minutos = (seconds % 3600) / 60
         // 3. Obtener los segundos finales con el residuo de la división entre 60
         val segundos = seconds % 60
-        // 4. Formatear el texto para asegurar los dos dígitos por cada elemento
-        // Resultado: "01h 01m 05s"
+        // 4. Formatear el texto para asegurar los dos dígitos por cada elemento meno en hora
+        // Resultado: "1h 01m 05s"
         return if (horas > 0) {
-            "%02dh %02dm %02ds".format(horas, minutos, segundos)
+            "%dh %02dm %02ds".format(horas, minutos, segundos)
         } else {
             "%02dm %02ds".format(minutos, segundos)
         }
