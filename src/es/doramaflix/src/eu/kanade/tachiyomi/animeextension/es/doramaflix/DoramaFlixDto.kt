@@ -207,7 +207,7 @@ data class Cast(
 @Serializable
 data class Genre(
     @SerialName("_id")
-    val id: String,
+    val id: String?,
     val name: String,
     val slug: String,
     @SerialName("__typename")
@@ -220,7 +220,7 @@ data class Genre(
 @Serializable
 data class Label(
     @SerialName("_id")
-    val id: String,
+    val id: String?,
     val name: String,
     val slug: String,
     @SerialName("__typename")
@@ -233,7 +233,7 @@ data class Label(
 @Serializable
 data class Network(
     @SerialName("_id")
-    val id: String,
+    val id: String?,
     val name: String,
     val slug: String?,
     @SerialName("__typename")

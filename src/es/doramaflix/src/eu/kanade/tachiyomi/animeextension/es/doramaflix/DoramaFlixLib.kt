@@ -23,7 +23,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 object DoramaFlixLib {
 
     // ========================== CONSTANTES ==========================
-    private const val DEBUG_ACTIVE = true
+    private const val DEBUG_ACTIVE = false
     private const val DEBUG_TAG = "DoramasFlix"
     private const val DORAMAS_API = "https://sv1.fluxcedene.net/api/gql"
 

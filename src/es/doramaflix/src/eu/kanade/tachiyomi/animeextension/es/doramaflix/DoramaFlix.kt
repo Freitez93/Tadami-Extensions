@@ -6,6 +6,7 @@ import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import aniyomi.lib.doodextractor.DoodExtractor
 import aniyomi.lib.filemoonextractor.FilemoonExtractor
+import aniyomi.lib.mixdropextractor.MixDropExtractor
 import aniyomi.lib.mp4uploadextractor.Mp4uploadExtractor
 import aniyomi.lib.okruextractor.OkruExtractor
 import aniyomi.lib.streamwishextractor.StreamWishExtractor
@@ -47,6 +48,7 @@ class DoramaFlix : Source() {
     private val streamWishExtractor by lazy { StreamWishExtractor(client, headers) }
     private val okruExtractor by lazy { OkruExtractor(client, headers) }
     private val doodExtractor by lazy { DoodExtractor(client) }
+    private val mixDropExtractor by lazy { MixDropExtractor(client) }
 
     // ============================== Popular ===============================
     override fun popularAnimeRequest(page: Int): Request = DoramaFlixLib.fetchDoramas(
@@ -69,7 +71,6 @@ class DoramaFlix : Source() {
     // ============================== Search ================================
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val params = DoramaFlixFilters.getSearchParameters(filters)
-        Log.d(name, params.toString())
         return when {
             // Caso 1: Búsqueda por texto (query)
             query.isNotEmpty() -> {
@@ -90,7 +91,7 @@ class DoramaFlix : Source() {
                 labels = params.label,
             )
 
-            // Caso 2: Filtrado por Tipo peliculas
+            // Caso 3: Filtrado por Tipo peliculas
             params.type == "peliculas" -> DoramaFlixLib.fetchMovies(
                 page = page,
                 perPage = 32,
@@ -103,15 +104,23 @@ class DoramaFlix : Source() {
                 labels = params.label,
             )
 
-            // Caso 3: Catálogo general
-            else -> {
-                DoramaFlixLib.fetchSearchAll("My Stange Hero", 10)
-            }
+            // Caso 4: Catálogo Variedades
+            else -> DoramaFlixLib.fetchDoramas(
+                page = page,
+                perPage = 32,
+                sort = params.sort,
+                isTVShow = true,
+                year = params.year,
+                country = params.country,
+                languages = params.language,
+                networks = params.network,
+                genres = params.genre,
+                labels = params.label,
+            )
         }
     }
     override fun searchAnimeParse(response: Response): AnimesPage {
         val body = response.bodyString()
-        Log.d(name, "searchAnimeParse -> $body")
         return try {
             val dataJson = body.parseGraphQLAs<PaginationModel>()
             val nextPage = dataJson.pagination?.hasNextPage ?: false
@@ -197,8 +206,6 @@ class DoramaFlix : Source() {
     }
     override fun episodeListParse(response: Response): List<SEpisode> {
         val body = response.bodyString()
-        Log.d(name, "episodeListParse: $body")
-
         val episodes = mutableListOf<SEpisode>()
         var epdIndex = 0
         return try {
@@ -225,7 +232,7 @@ class DoramaFlix : Source() {
                         this.url = siteUrl(dataMovie.typename, dataMovie.slug, dataMovie.id)
                         this.name = "Pelicula"
                         this.date_upload = parseDateToLong(dataMovie.getRelease, "yyyy-MM-dd")
-                        this.episode_number = epdIndex.toFloat()
+                        this.episode_number = 1F
                         // this.fillermark = false
                         // this.scanlator = ""
                         this.summary = "Duración: ${dataMovie.getDuration}"
@@ -300,6 +307,8 @@ class DoramaFlix : Source() {
                 "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(url, "$serverName:")
 
                 "Filemoon" -> filemoonExtractor.videosFromUrl(url, "$serverName:")
+
+                "Mixdrop" -> mixDropExtractor.videosFromUrl(url)
 
                 "VidHide" -> vidHideExtractor.videosFromUrl(url, "$serverName:")
 
@@ -436,7 +445,7 @@ class DoramaFlix : Source() {
         private const val PREF_QLTY_DEFAULT = "720"
 
         private val PREF_HOST_VALUES = arrayOf(
-            "Ok", "Voe", "Dood", "Uqload", "Mp4Upload",
+            "Ok", "Voe", "Dood", "Uqload", "Mp4Upload", "MixDrop",
             "Streamwish", "Filemoon", "VidHide",
         )
         private const val PREF_HOST_DEFAULT = "Voe"

@@ -388,9 +388,9 @@ object DoramaFlixFilters {
             "Antiguos" to "_ID_ASC",
             "Populares" to "POPULARITY_DESC",
             "Mejor Valorados" to "RATING_DESC",
-            "+Votados" to "RATING_COUNT_DESC",
-            "+Vistos" to "VIEWS_COUNT_DESC",
-            "+Favoritos" to "FAVS_COUNT_DESC",
+            "Mas Votados" to "RATING_COUNT_DESC",
+            "Mas Vistos" to "VIEWS_COUNT_DESC",
+            "Mas Favoritos" to "FAVS_COUNT_DESC",
         )
     }
 }
