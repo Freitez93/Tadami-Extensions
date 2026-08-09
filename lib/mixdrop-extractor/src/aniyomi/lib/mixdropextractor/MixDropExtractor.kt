@@ -1,6 +1,6 @@
 package aniyomi.lib.mixdropextractor
 
-import aniyomi.lib.unpacker.Unpacker
+import aniyomi.lib.unpacker.autoUnpacker
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
@@ -26,12 +26,10 @@ class MixDropExtractor(private val client: OkHttpClient) {
         val doc = client.newCall(GET(url, headers)).execute().asJsoup()
         val unpacked = doc.selectFirst("script:containsData(eval):containsData(MDCore)")
             ?.data()
-            ?.let(Unpacker::unpack)
+            ?.let(::autoUnpacker)
             ?: return emptyList()
 
-        val videoUrl = "https:" + unpacked.substringAfter("Core.wurl=\"")
-            .substringBefore("\"")
-
+        val videoUrl = "https:" + unpacked.substringAfter("Core.wurl=\"").substringBefore("\"")
         val subs = unpacked.substringAfter("Core.remotesub=\"").substringBefore('"')
             .takeIf(String::isNotBlank)
             ?.let { listOf(Track(URLDecoder.decode(it, "utf-8"), "sub")) }
@@ -52,6 +50,8 @@ class MixDropExtractor(private val client: OkHttpClient) {
         externalSubs: List<Track> = emptyList(),
         referer: String = DEFAULT_REFERER,
     ) = videoFromUrl(url, lang, prefix, externalSubs, referer)
-}
 
-private const val DEFAULT_REFERER = "https://mixdrop.co/"
+    companion object {
+        private const val DEFAULT_REFERER = "https://mixdrop.co/"
+    }
+}
