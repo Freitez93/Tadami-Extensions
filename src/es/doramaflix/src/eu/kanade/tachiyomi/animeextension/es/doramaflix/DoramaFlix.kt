@@ -25,18 +25,26 @@ import keiyoushi.utils.Source
 import keiyoushi.utils.bodyString
 import keiyoushi.utils.parallelFlatMap
 import keiyoushi.utils.parseGraphQLAs
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 class DoramaFlix : Source() {
     override val name = "DoramaFlix"
     override val lang = "es"
     override val baseUrl = "https://doramasflix.in"
     override val supportsLatest = true
+
+    override val client: OkHttpClient = network.client.newBuilder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build()
 
     // Extractores Utilizados.
     private val voeExtractor by lazy { VoeExtractor(client, headers) }
@@ -299,35 +307,40 @@ class DoramaFlix : Source() {
         listServer.parallelFlatMap { nameAndUrl ->
             val (serverName, url) = nameAndUrl.split("<@>") // Dividimos el Nombre de la Url
             Log.d(name, "Resolviendo URL: $serverLang $serverName -> $url")
-            when (serverName) {
-                "Voe" -> voeExtractor.videosFromUrl(url, "$serverName:")
+            try {
+                when (serverName) {
+                    "Voe" -> voeExtractor.videosFromUrl(url, "$serverName:")
 
-                "Uqload" -> uqloadExtractor.videosFromUrl(url, "$serverName:")
+                    "Uqload" -> uqloadExtractor.videosFromUrl(url, "$serverName:")
 
-                "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(url, "$serverName:")
+                    "Mp4Upload" -> mp4uploadExtractor.videosFromUrl(url, "$serverName:")
 
-                "Filemoon" -> filemoonExtractor.videosFromUrl(url, "$serverName:")
+                    "Filemoon" -> filemoonExtractor.videosFromUrl(url, "$serverName:")
 
-                "Mixdrop" -> mixDropExtractor.videosFromUrl(url)
+                    "Mixdrop" -> mixDropExtractor.videosFromUrl(url)
 
-                "VidHide" -> vidHideExtractor.videosFromUrl(url, "$serverName:")
+                    "VidHide" -> vidHideExtractor.videosFromUrl(url, "$serverName:")
 
-                "Dood" -> listOfNotNull(doodExtractor.videoFromUrl(url, "$serverName:"))
+                    "Dood" -> listOfNotNull(doodExtractor.videoFromUrl(url, "$serverName:"))
 
-                "Ok" -> okruExtractor.videosFromUrl(url, "Okru:")
+                    "Ok" -> okruExtractor.videosFromUrl(url, "Okru:")
 
-                "Streamwish" -> {
-                    val firstCall = streamWishExtractor.videosFromUrl(url, "$serverName:")
-                    firstCall.ifEmpty {
-                        universalExtractor.videosFromUrl(
-                            url,
-                            headers,
-                            videoNameGen = { "$serverName:$it" },
-                        )
+                    "Streamwish" -> {
+                        val firstCall = streamWishExtractor.videosFromUrl(url, "$serverName:")
+                        firstCall.ifEmpty {
+                            universalExtractor.videosFromUrl(
+                                url,
+                                headers,
+                                videoNameGen = { "$serverName:$it" },
+                            )
+                        }
                     }
-                }
 
-                else -> universalExtractor.videosFromUrl(url, headers, prefix = "")
+                    else -> universalExtractor.videosFromUrl(url, headers, prefix = "")
+                }
+            } catch (e: Exception) {
+                Log.e(name, "Error al procesar el servidor: $serverName", e)
+                emptyList()
             }
         }.sortVideos() // Aplicamos el ordenamiento al final sobre toda la lista plana
     } catch (e: Exception) {
