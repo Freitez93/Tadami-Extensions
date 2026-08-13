@@ -85,14 +85,14 @@ class AnimeAV1 : Source() {
             // this.artist
             // this.author
             this.description = buildString {
-                append("${animeJson.synopsis ?: "Sin descripción disponible."}\n")
+                append("${animeJson.synopsis ?: "Sin descripción disponible."}\n\n")
                 // Extra info extraction for description
-                animeJson.startDate?.also { append("\n – Se Estreno: $it") }
-                animeJson.endDate?.also { append("\n – Finalizo En: $it") }
-                document.selectFirst("span:contains(Temporada)")?.text().also { append("\n – $it") }
-                animeJson.category?.also { append("\n – Tipo de Anime: ${it.name}") }
-                animeJson.malId?.also { append("\n – MyAnimeList ID: $it") }
-                animeJson.score?.also { append("\n – Calificacion: $it") }
+                animeJson.startDate?.also { append("\n- Se Estreno: $it") }
+                animeJson.endDate?.also { append("\n- Finalizo En: $it") }
+                document.selectFirst("span:contains(Temporada)")?.text().also { append("\n- $it") }
+                animeJson.category?.also { append("\n- Tipo de Anime: ${it.name}") }
+                animeJson.malId?.also { append("\n- MyAnimeList ID: $it") }
+                animeJson.score?.also { append("\n- Calificacion: $it") }
             }
             this.genre = animeJson.genres?.joinToString(", ") { it.name!! }
             this.status = when (animeJson.status) {

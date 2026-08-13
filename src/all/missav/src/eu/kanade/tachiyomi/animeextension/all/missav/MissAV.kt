@@ -101,17 +101,17 @@ class MissAV : Source() {
             this.artist = document.getInfo("Actress:")
             this.author = listOfNotNull(director, maker).joinToString()
             this.description = buildString {
-                append("${synopsis ?: "No description found."}\n")
+                append("${synopsis ?: "No description found."}\n\n")
                 // Informacion extra del AV.
-                document.getInfo("Release date:")?.also { append("\n – Release date: $it") }
-                document.getInfo("Title")?.also { append("\n – Original Title: $it") }
-                document.getInfo("Code")?.also { append("\n – Code: $it") }
-                document.getInfo("Actress")?.also { append("\n – Actress: $it") }
-                document.getInfo("Actor")?.also { append("\n – Actor: $it") }
-                document.getInfo("Series")?.also { append("\n – Series: $it") }
-                document.getInfo("Maker")?.also { append("\n – Maker: $it") }
-                document.getInfo("Director")?.also { append("\n – Director: $it") }
-                document.getInfo("Label")?.also { append("\n – Label: $it") }
+                document.getInfo("Release date:")?.also { append("\n- Release date: $it") }
+                document.getInfo("Title")?.also { append("\n- Original Title: $it") }
+                document.getInfo("Code")?.also { append("\n- Code: $it") }
+                document.getInfo("Actress")?.also { append("\n- Actress: $it") }
+                document.getInfo("Actor")?.also { append("\n- Actor: $it") }
+                document.getInfo("Series")?.also { append("\n- Series: $it") }
+                document.getInfo("Maker")?.also { append("\n- Maker: $it") }
+                document.getInfo("Director")?.also { append("\n- Director: $it") }
+                document.getInfo("Label")?.also { append("\n- Label: $it") }
             }
             this.genre = document.getInfo("Genre:")
             this.status = SAnime.COMPLETED

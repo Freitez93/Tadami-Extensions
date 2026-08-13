@@ -130,9 +130,9 @@ data class DoramaDetail(
     @SerialName("created_by")
     val createdBy: List<CreatedBy> = emptyList(),
     val cast: List<Cast> = emptyList(),
-    val genres: List<Genre> = emptyList(),
-    val labels: List<Label> = emptyList(),
-    val networks: List<Network> = emptyList(),
+    val genres: List<GLN> = emptyList(),
+    val labels: List<GLN> = emptyList(),
+    val networks: List<GLN> = emptyList(),
     @SerialName("__typename")
     val typename: String,
 ) {
@@ -202,44 +202,17 @@ data class Cast(
 )
 
 // --------------------------
-// Genres
+// Genres - Labels - Networks
 // --------------------------
 @Serializable
-data class Genre(
+data class GLN(
     @SerialName("_id")
     val id: String?,
     val name: String,
     val slug: String,
     @SerialName("__typename")
-    val typename: String = "Genres",
+    val typename: String?,
 )
-
-// --------------------------
-// Labels
-// --------------------------
-@Serializable
-data class Label(
-    @SerialName("_id")
-    val id: String?,
-    val name: String,
-    val slug: String,
-    @SerialName("__typename")
-    val typename: String = "Label",
-)
-
-// --------------------------
-// Networks
-// --------------------------
-@Serializable
-data class Network(
-    @SerialName("_id")
-    val id: String?,
-    val name: String,
-    val slug: String?,
-    @SerialName("__typename")
-    val typename: String = "Network",
-)
-
 // --------------------------
 // Episodios
 // --------------------------
@@ -294,7 +267,7 @@ data class Episode(
     val getName: String get() = if (name.contains(EPISODE_REGEX)) {
         "S$seasonNumber:E$episodeNumber - Episodio $episodeNumber"
     } else {
-        name
+        "S$seasonNumber:E$episodeNumber - $name"
     }
 
     // Propiedad computada que devuelve la fecha de estreno.

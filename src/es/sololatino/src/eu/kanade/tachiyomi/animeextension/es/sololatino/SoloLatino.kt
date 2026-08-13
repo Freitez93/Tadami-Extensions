@@ -133,16 +133,16 @@ class SoloLatino : Source() {
             this.thumbnail_url = doc.selectFirst("div > img[style]")?.attr("src")
             this.background_url = doc.selectFirst("meta[property='og:image']")?.attr("content")
             this.description = buildString {
-                append("${synopsis ?: "Sin descripción disponible."}\n")
+                append("${synopsis ?: "Sin descripción disponible."}\n\n")
                 // Extra info extraction for description
-                doc.getInfo("Estreno|Año")?.also { append("\n – Estreno: $it") }
+                doc.getInfo("Estreno|Año")?.also { append("\n- Estreno: $it") }
                 doc.getInfo("Temporadas")?.also { append(" • $it temp.") }
-                doc.getInfo("Último aire")?.also { append("\n – Último Episodio: $it") }
-                doc.getInfo("Título original")?.also { append("\n – Título Original: $it") }
-                doc.getInfo("Idioma original")?.also { append("\n – Idioma Original: $it") }
-                doc.getInfo("Duración")?.also { append("\n – Duración: $it") }
-                doc.getInfo("País")?.also { append("\n – País: $it") }
-                doc.getInfo("Clasificación|Certificación")?.also { append("\n – Clasificación: $it") }
+                doc.getInfo("Último aire")?.also { append("\n- Último Episodio: $it") }
+                doc.getInfo("Título original")?.also { append("\n- Título Original: $it") }
+                doc.getInfo("Idioma original")?.also { append("\n- Idioma Original: $it") }
+                doc.getInfo("Duración")?.also { append("\n- Duración: $it") }
+                doc.getInfo("País")?.also { append("\n- País: $it") }
+                doc.getInfo("Clasificación|Certificación")?.also { append("\n- Clasificación: $it") }
             }
 
             // Metadata parsing

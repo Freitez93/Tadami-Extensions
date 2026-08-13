@@ -103,15 +103,15 @@ class XChina : Source() {
             this.artist = document.select("div.model-item").joinToString { it.text() }
             this.author = listOfNotNull(director, maker).joinToString()
             this.description = buildString {
-                append("${synopsis ?: "No description found."}\n")
+                append("${synopsis ?: "No description found."}\n\n")
                 // Informacion extra del AV.
-                document.getData("i.fa-calendar-days", "a")?.also { append("\n – Release date: $it") }
-                jpnTitle?.also { append("\n – Original Title: $it") }
-                document.getData("i.fa-file", "div.text")?.also { append("\n – Code: $it") }
-                artist?.also { append("\n – Actress: $it") }
-                document.getData("i.fa-layer-group", "a")?.also { append("\n – Series: $it") }
-                maker?.also { append("\n – Maker: $it") }
-                director?.also { append("\n – Director: $it") }
+                document.getData("i.fa-calendar-days", "a")?.also { append("\n- Release date: $it") }
+                jpnTitle?.also { append("\n- Original Title: $it") }
+                document.getData("i.fa-file", "div.text")?.also { append("\n- Code: $it") }
+                artist?.also { append("\n- Actress: $it") }
+                document.getData("i.fa-layer-group", "a")?.also { append("\n- Series: $it") }
+                maker?.also { append("\n- Maker: $it") }
+                director?.also { append("\n- Director: $it") }
             }
             this.genre = listOfNotNull(tags1, tags2).joinToString()
             this.status = SAnime.COMPLETED

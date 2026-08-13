@@ -32,6 +32,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class DoramaFlix : Source() {
@@ -168,23 +169,27 @@ class DoramaFlix : Source() {
                 this.thumbnail_url = dataJson.getPoster("original")
                 this.background_url = dataJson.getBackdrop("original")
                 this.description = buildString {
-                    append("${dataJson.overview?.trim() ?: "Sin descripción disponible."}\n")
+                    append("${dataJson.overview?.trim() ?: "Sin descripción disponible."}\n\n")
                     // Extra info extraction for description
-                    append("\n – Estreno: ${dataJson.getRelease}")
-                    dataJson.numberOfSeasons?.also { append(" • $it temp.") }
-                    dataJson.lastAirDate?.also { append("\n – Último Episodio: $it") }
-                    dataJson.nameEs?.also { append("\n – Título Español: $it") }
-                    dataJson.names?.also { append("\n – Título Alt: $it") }
-                    append("\n – Idiomas: ${dataJson.getLanguage.joinToString(", ")}")
-                    append("\n – País: ${dataJson.getCountry}")
-                    dataJson.getDuration?.also { append("\n – Duración: $it") }
-                    append("\n – Rating: ${"%.1f".format(dataJson.rating)}")
-                    append("\n – Etiquetas: ${dataJson.labels.joinToString { it.name }}")
-                    append("\n – Plataformas: ${dataJson.networks.joinToString { it.name }}")
+                    append("\n- Estreno: ${dataJson.getRelease}")
+                    dataJson.lastAirDate?.also { append("\n- Último Episodio: $it") }
+                    dataJson.numberOfSeasons?.also { append("\n- Temporadas: $it temp.") }
+                    dataJson.nameEs?.also { append("\n- Título Español: $it") }
+                    dataJson.names?.also { append("\n- Título Alt: $it") }
+                    append("\n- Idiomas: ${dataJson.getLanguage.joinToString() }")
+                    append("\n- País: ${dataJson.getCountry}")
+                    dataJson.getDuration?.also { append("\n- Duración: $it") }
+                    append("\n- Rating: ★ %.1f".format(Locale.US, dataJson.rating))
+                    dataJson.labels.takeIf { it.isNotEmpty() }?.let { labels ->
+                        append("\n- Etiquetas: ${labels.joinToString { it.name }}")
+                    }
+                    dataJson.networks.takeIf { it.isNotEmpty() }?.let { networks ->
+                        append("\n- Plataformas: ${networks.joinToString { it.name }}")
+                    }
                 }
 
                 // Metadata parsing
-                this.genre = dataJson.genres.joinToString { it.name }
+                this.genre = (dataJson.genres + dataJson.labels).joinToString { it.name }
                 // Strict author parsing to avoid metadata
                 this.author = dataJson.createdBy.joinToString { it.name }
                 // Status is generally Completed for movies
